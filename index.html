@@ -266,6 +266,20 @@
     // ============================================================
 
     // ============================================================
+    // 📚 授業名の表記ゆれを抑える（全角/半角・空白・ローマ数字をそろえて比べる）
+    //   本番は授業マスタ（WBS 1.10・2.13）。運営が管理画面で名寄せする（2.14）
+    // ============================================================
+    const normCourse = (s) => (s || "").normalize("NFKC").toLowerCase()
+      .replace(/[\s・･\-ー－—_]/g, "").replace(/[()（）]/g, "")
+      .replace(/(iv|iii|ii|i)$/, (m) => ({ i: "1", ii: "2", iii: "3", iv: "4" }[m]));
+    // 入力中の文字に合う授業名を、よく使われている順に返す
+    const matchCourses = (dict, q, limit = 5) => {
+      const n = normCourse(q); if (!n) return [];
+      return dict.filter(c => c.norm.includes(n) || (n.length >= 3 && n.includes(c.norm)))
+        .sort((a, b) => (b.norm.startsWith(n) - a.norm.startsWith(n)) || (b.q + b.k * 2) - (a.q + a.k * 2)).slice(0, limit);
+    };
+
+    // ============================================================
     // 🏫 大学設定（既定は北大。URL末尾に ?univ=otaru で小樽商大に切り替え）
     // ============================================================
     const ACTIVE_UNIVERSITY = "hokudai";
@@ -277,6 +291,8 @@
         peers: ["総合", "経済", "工", "文", "理", "農", "法"],
         lms: "ELMS",
         courseA: "線形代数学Ⅰ", courseB: "心理学", courseC: "統計学", courseD: "英語Ⅱ",
+        // ほかの学生が過去に入れた授業名（見本。本番は授業マスタから）[名前, 質問数]
+        courseSeen: [["線形代数学Ⅱ", 2], ["微分積分学Ⅰ", 4], ["微分積分学Ⅱ", 1], ["基礎物理学Ⅰ", 2], ["基礎化学Ⅰ", 1], ["英語Ⅰ", 3], ["情報学Ⅰ", 2], ["心理学概論", 1], ["経済学入門", 2], ["一般教育演習（フレッシュマンセミナー）", 3], ["統計学入門", 1], ["法学", 1]],
         zemiTitle: "研究室を見学せずに決めた人、後悔しませんでしたか？",
         winter: "雪の日の通学",
         buddyTitle: "朝活（8時から図書館で自習）の仲間を探しています",
@@ -291,6 +307,7 @@
         peers: ["商"],
         lms: "manaba",
         courseA: "マクロ経済学Ⅰ", courseB: "簿記原理", courseC: "経営学入門", courseD: "英語Ⅱ",
+        courseSeen: [["マクロ経済学Ⅱ", 1], ["ミクロ経済学Ⅰ", 3], ["会計学入門", 2], ["英語Ⅰ", 2], ["商法総論", 1], ["民法総則", 2], ["マーケティング論", 2], ["情報処理入門", 1], ["統計学", 2], ["経営組織論", 1]],
         zemiTitle: "新設ゼミや見学のないゼミの雰囲気を、事前に知る方法はありますか？",
         winter: "地獄坂の冬の通学",
         buddyTitle: "簿記2級を一緒に目指す仲間を探しています",
@@ -901,6 +918,57 @@
       useEffect(() => { check(); const t = setTimeout(check, 300); return () => clearTimeout(t); });
       return <div ref={ref} onScroll={check} className={cx(className, more && "fade-r")}>{children}</div>;
     }
+    // 📚 授業名の入力（入力し始めると、ほかの人が入れた授業名を候補に出す）
+    function CourseInput({ id, dict, value, onChange, onPick, inputRef, placeholder, newLabel }) {
+      const v = value.trim();
+      const n = normCourse(v);
+      const same = n ? dict.find(c => c.norm === n) : null;          // 表記だけちがう同じ授業
+      const done = same && same.name === v;                            // 登録済みの名前どおり
+      const list = done ? [] : matchCourses(dict, v).filter(c => c !== same);
+      const meta = (c) => [c.q ? `質問${c.q}` : "", c.k ? `過去問${c.k}` : ""].filter(Boolean).join("・");
+      // 候補が画面の下に隠れないよう、入力中は欄を上の方へ寄せる
+      const boxRef = useRef(null);
+      const reveal = () => setTimeout(() => { if (boxRef.current) boxRef.current.scrollIntoView({ block: "start", behavior: "smooth" }); }, 50);
+      return (
+        <div ref={boxRef} className="space-y-1.5 scroll-mt-10">
+          <div className="relative">
+            <Icon n="school" size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-mute pointer-events-none" />
+            <input id={id} ref={inputRef} value={value} onChange={(e) => { onChange(e.target.value); reveal(); }} onFocus={reveal} placeholder={placeholder} autoComplete="off"
+              className={cx(INPUT, "pl-10")} role="combobox" aria-expanded={list.length > 0} aria-controls={`${id}-list`} />
+          </div>
+          {done && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[12px] font-bold text-brand-deep flex items-center gap-1"><Icon n="check_circle" fill size={15} />登録済みの授業名です{meta(same) && `（${meta(same)}）`}</p>
+              {newLabel && <button type="button" onClick={() => onPick(v)} className="text-[12.5px] font-black text-on-brand bg-brand rounded-full px-3 py-1.5 press flex-shrink-0">{newLabel.replace(/^を/, "")}</button>}
+            </div>
+          )}
+          {same && !done && (
+            <button type="button" onClick={() => onPick(same.name)} className="w-full text-left bg-brand-tint border border-brand/40 rounded-2xl px-3 py-2 text-[13px] press flex items-center gap-1.5">
+              <Icon n="lightbulb" fill size={16} className="text-brand-deep" /><span>もしかして <b>「{same.name}」</b>？　同じ授業なら押してそろえてください</span>
+            </button>
+          )}
+          {v && !done && (list.length > 0 ? (
+            <div id={`${id}-list`} role="listbox" className="bg-surface border border-line rounded-2xl overflow-hidden">
+              <p className="text-[11px] font-bold text-mute px-3 pt-2 pb-1">ほかの人が入れた授業名</p>
+              {list.map(c => (
+                <button key={c.norm} type="button" role="option" aria-selected="false" onClick={() => onPick(c.name)} className="w-full text-left px-3 py-2.5 border-t border-line/60 flex items-center gap-2 press">
+                  <Icon n="menu_book" size={17} className="text-brand-deep flex-shrink-0" />
+                  <span className="flex-1 min-w-0 font-bold text-[13.5px] truncate">{c.name}</span>
+                  {meta(c) && <span className="text-[11px] text-mute flex-shrink-0">{meta(c)}</span>}
+                </button>
+              ))}
+              {newLabel && <button type="button" onClick={() => onPick(v)} className="w-full text-left px-3 py-2.5 border-t border-line/60 text-[12.5px] text-sub press flex items-center gap-1.5"><Icon n="add" size={16} />どれでもない →「{v}」{newLabel}</button>}
+            </div>
+          ) : !same && (
+            <div className="text-[12px] text-sub bg-sunk rounded-2xl px-3 py-2 space-y-1.5">
+              <p className="flex items-start gap-1"><Icon n="info" size={15} className="mt-px flex-shrink-0" />まだだれも入れていない授業名です。シラバスどおりの正式な名前だと、ほかの人の質問や過去問とまとまりやすくなります。</p>
+              {newLabel && <button type="button" onClick={() => onPick(v)} className="font-bold text-brand-deep press">「{v}」{newLabel}</button>}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     function EmptyState({ icon, text, action, onAction }) {
       return (
         <div className="text-center py-10 space-y-3">
@@ -1174,7 +1242,7 @@
 
     const StepNum = ({ n }) => <span className="w-[18px] h-[18px] rounded-full bg-brand text-on-brand text-[11px] font-black inline-flex items-center justify-center">{n}</span>;
 
-    function AskSheet({ me, posts, preset, context = "home", onClose, onSubmit, onJoin, onOpenPost, onCreateEvent, onShareKakomon }) {
+    function AskSheet({ me, posts, courseDict = [], preset, context = "home", onClose, onSubmit, onJoin, onOpenPost, onCreateEvent, onShareKakomon }) {
       const [mode, setMode] = useState(preset && (preset.cat || preset.text) ? "question" : "menu");
       const [text, setText] = useState((preset && preset.text) || "");
       const [catManual, setCatManual] = useState((preset && preset.cat && preset.cat !== "運営のお題") ? preset.cat : "");
@@ -1184,11 +1252,20 @@
       const [joinTarget, setJoinTarget] = useState(null);
       const [joinNote, setJoinNote] = useState("");
       const textRef = useRef(null);
+      const courseRef = useRef(null);
+      const [course, setCourse] = useState("");
 
       const title = text.trim();
       const autoCat = guessCategory(title);
       const category = catManual || autoCat;
       const hasBlank = Q_PLACEHOLDER.test(title);
+      const needsCourse = text.includes("【授業名】");                 // 例文の【授業名】を、候補から選んで埋める
+      const showCourse = needsCourse || category === "授業・過去問";   // 授業の質問は授業名を付けると過去問とつながる
+      const pickCourse = (name) => {
+        setCourse(name);
+        if (needsCourse) setText(t => t.replace("【授業名】", name));
+      };
+      const finalCourse = (() => { const v = course.trim(); if (!v || needsCourse) return ""; const hit = courseDict.find(c => c.norm === normCourse(v)); return hit ? hit.name : v; })();
       const ready = title.length >= 5 && !!category && !hasBlank;
       const similar = useMemo(() => (title.length >= 5 && !hasBlank ? findSimilarQuestions(posts, title, category) : []), [title, category, posts, hasBlank]);
       const term = autoTerm();
@@ -1199,6 +1276,7 @@
         setTimeout(() => {
           const el = textRef.current; if (!el) return;
           const m = s.match(Q_PLACEHOLDER);
+          if (m && m[0] === "【授業名】" && courseRef.current) { setCourse(""); courseRef.current.focus(); return; }
           el.focus();
           if (m) el.setSelectionRange(m.index, m.index + m[0].length);
         }, 0);
@@ -1272,8 +1350,18 @@
               <textarea id="ask-text" ref={textRef} rows={2} value={text} onChange={(e) => setText(e.target.value)}
                 placeholder={category ? "上の例を押して書きかえるか、自由に書いてください" : Q_EXAMPLE[term]}
                 className={cx(INPUT, "leading-relaxed text-[15px] font-bold")} />
-              {hasBlank && <p className="text-[12px] font-bold text-danger-ink mt-1.5 flex items-center gap-1"><Icon n="edit" size={14} />【 】の部分を書きかえてください</p>}
+              {hasBlank && !needsCourse && <p className="text-[12px] font-bold text-danger-ink mt-1.5 flex items-center gap-1"><Icon n="edit" size={14} />【 】の部分を書きかえてください</p>}
             </div>
+
+            {/* 授業名（候補から選ぶと表記がそろう。例文の【授業名】もここで埋める） */}
+            {showCourse && (
+              <div className={cx(needsCourse && "bg-brand-tint/50 rounded-3xl p-3 -mx-1")}>
+                <label className={LABEL} htmlFor="ask-course">{needsCourse ? "【授業名】に入る授業" : "どの授業？（任意・同じ授業の過去問とつながります）"}</label>
+                <CourseInput id="ask-course" dict={courseDict} inputRef={courseRef} value={course} onChange={setCourse} onPick={pickCourse}
+                  placeholder={`授業名を入れる（例：${U.courseA}）`} newLabel={needsCourse ? "を入れる" : ""} />
+                {needsCourse && <p className="text-[11.5px] text-sub mt-1.5">候補から選ぶと、上の【授業名】に入ります</p>}
+              </div>
+            )}
 
             {/* 🔗 似ている質問（合流するかは自分で決める） */}
             {similar.length > 0 && (
@@ -1350,7 +1438,7 @@
           </div>
           <div className="px-4 pt-3 pb-4 border-t border-line space-y-1.5">
             {!ready && title.length > 0 && !hasBlank && !category && <p className="text-[12px] text-sub text-center">話題を1つ選んでください</p>}
-            <button disabled={!ready} onClick={() => onSubmit({ title, category, askTo, content: detail.trim(), anon })} className={cx(BTN_PRIMARY, "w-full")}>質問する</button>
+            <button disabled={!ready} onClick={() => onSubmit({ title, category, askTo, content: detail.trim(), anon, course: finalCourse })} className={cx(BTN_PRIMARY, "w-full")}>質問する</button>
           </div>
         </Sheet>
       );
@@ -1765,7 +1853,7 @@
       );
     }
 
-    function ShareKakomonSheet({ onClose, onSubmit }) {
+    function ShareKakomonSheet({ courseDict = [], onClose, onSubmit }) {
       const [course, setCourse] = useState("");
       const [title, setTitle] = useState("");
       const [kind, setKind] = useState("過去問");
@@ -1780,7 +1868,7 @@
             <Segmented value={kind} onChange={setKind} options={[{ value: "過去問", label: "過去問", icon: "description" }, { value: "傾向メモ", label: "傾向メモ", icon: "sticky_note_2" }]} />
             <div>
               <label className={LABEL} htmlFor="kk-course">授業名</label>
-              <input id="kk-course" value={course} onChange={(e) => setCourse(e.target.value)} placeholder={`例：${U.courseA}`} className={INPUT} />
+              <CourseInput id="kk-course" dict={courseDict} value={course} onChange={setCourse} onPick={setCourse} placeholder={`例：${U.courseA}`} />
             </div>
             <div>
               <label className={LABEL} htmlFor="kk-title">年度・種類</label>
@@ -1810,7 +1898,7 @@
             </label>
           </div>
           <div className="px-4 pt-3 pb-4 border-t border-line">
-            <button disabled={!ok} onClick={() => onSubmit({ course: course.trim(), title: title.trim(), kind, memo: memo.trim() })} className={cx(BTN_PRIMARY, "w-full")}>共有する（閲覧チケット+{TICKET_RULES.share}枚）</button>
+            <button disabled={!ok} onClick={() => onSubmit({ course: (courseDict.find(c => c.norm === normCourse(course)) || { name: course.trim() }).name, title: title.trim(), kind, memo: memo.trim() })} className={cx(BTN_PRIMARY, "w-full")}>共有する（閲覧チケット+{TICKET_RULES.share}枚）</button>
           </div>
         </Sheet>
       );
@@ -1984,7 +2072,7 @@
         "絞り込み中の表示：「< ホーム」をやめ、色付きの帯に「絞り込み中」と条件の札（×で外せる）を出す。「すべて解除」で条件を全部外すとホームの表示に戻る（プロトタイプを触った人の声：解除方法が分かりにくい）",
         "ホームの絞り込みは検索欄の下の1列だけ：前期・後期で変わる話題（後期なら期末テスト・過去問／後期の履修／冬の通学／ゼミ選び／インターン）＋「もっと」で全カテゴリ。「あなた向け」見出し横の絞り込みは重複していたため削除",
         "作る入口は下の「投稿」1か所だけ：ホームの［先輩に質問する］、仲間・イベントの［作る］、過去問タブの［共有する］は削除。「投稿」を開くと、いまいる画面に合う項目が一番上に出る（ホーム＝質問／過去問タブ＝過去問の共有／仲間・イベント＝募集・イベント）。例外として、検索で見つからなかったときの「この内容で質問する」だけ残す（キーワードとカテゴリを引き継ぐため）。仲間・イベント画面でも下のメニューを常に表示",
-        "質問は1つの画面：①話題を選ぶ → 話題に合った「書き方の例」が出る → ②例を押して【授業名】などを書きかえる、または例を見て自分で書く（話題を選ばずに書いた場合は、書いた文から話題を自動で選ぶ）。何を書けばいいか分からない人のために、話題を先に置いた。テンプレート7つから選ぶ形はやめ、「投稿」の中は質問する／人を集める／知恵を残すの3行にそろえた。運営のお題は学生には出さない",
+        "質問は1つの画面：①話題を選ぶ → 話題に合った「書き方の例」が出る → ②例を押して【授業名】などを書きかえる、または例を見て自分で書く（話題を選ばずに書いた場合は、書いた文から話題を自動で選ぶ）。何を書けばいいか分からない人のために、話題を先に置いた。授業名は、入力し始めるとほかの人が入れた授業名を候補に出す（全角/半角・空白・ⅠとIと1の違いはそろえて比べ、「もしかして」で同じ授業にそろえる）。表記ゆれを抑え、同じ授業の質問と過去問をつなぐため。過去問の共有も同じ入力欄。テンプレート7つから選ぶ形はやめ、「投稿」の中は質問する／人を集める／知恵を残すの3行にそろえた。運営のお題は学生には出さない",
         "仲間募集とイベントを統合：入口・入力画面・一覧を1つに。「日時・場所を決める」がオフ＝いつでも・ゆるい募集、オン＝イベント。反応は「参加したい＋ひとこと」にそろえた。日時ありは主催者名（団体名かニックネーム）が必須、日時なしは匿名もOK。仲間募集はQ&Aのカテゴリから外し「仲間・イベント」へ移した",
         "確かめ方：新入生に近い人にホームを5秒見せて「このアプリで何ができる？」と聞き、「先輩に聞ける」と答えてもらえるか"
       ] },
@@ -2769,9 +2857,9 @@
       const closeRecruit = (postId) => { updatePost(postId, p => ({ ...p, closed: true })); showToast("募集を締め切りました"); };
 
       // ---- 質問する ----
-      const submitQuestion = ({ title, category, askTo, content, anon }) => {
+      const submitQuestion = ({ title, category, askTo, content, anon, course }) => {
         const id = Date.now();
-        const post = { id, category, askTo, title, content, author: myUser(anon), at: Date.now(), views: 0, watchers: 0, watched: true, comments: [], joiners: [], hidden: false, closed: false };
+        const post = { id, category, askTo, title, content, course: course || undefined, author: myUser(anon), at: Date.now(), views: 0, watchers: 0, watched: true, comments: [], joiners: [], hidden: false, closed: false };
         setPosts(prev => [post, ...prev]);
         setAsk(null);
         closeOverlays(); scrollMem.current.home = 0; setTab("home"); setQuery(""); setCatFilter(""); window.scrollTo(0, 0);
@@ -2813,6 +2901,15 @@
         pushNotice({ kind: "ticket", title: `閲覧チケット+${TICKET_RULES.share}枚`, preview: `【${course}】を共有してくれたお礼です` });
       };
       const kakomonThanks = (kid) => setKakomon(prev => prev.map(k => k.id === kid ? { ...k, liked: true, thanks: k.thanks + 1 } : k));
+      // 授業名の辞書（ほかの人が入れた授業名＋質問・過去問に付いた授業名。表記ゆれは normCourse でまとめる）
+      const courseDict = useMemo(() => {
+        const m = new Map();
+        const add = (name, q, k) => { const n = normCourse(name); if (!n) return; const c = m.get(n) || { name, norm: n, q: 0, k: 0 }; c.q += q; c.k += k; m.set(n, c); };
+        (U.courseSeen || []).forEach(([n, q]) => add(n, q, 0));
+        posts.forEach(p => p.course && add(p.course, 1, 0));
+        kakomon.forEach(k => add(k.course, 0, 1));
+        return Array.from(m.values());
+      }, [posts, kakomon]);
       const kakomonCount = (course) => kakomon.filter(k => k.course === course).length;
       const openKakomonOf = (course) => { setSelectedPostId(null); closeOverlays(); scrollMem.current.kakomon = 0; setKakomonCourse(course); setTab("kakomon"); };
       const goEarn = () => { setKakomonId(null); setSelectedPostId(null); closeOverlays(); scrollMem.current.home = 0; setTab("home"); setQuery(""); setCatFilter(""); setScope("forYou"); setTimeout(() => { const el = document.getElementById("waiting"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); };
@@ -3073,7 +3170,7 @@
               onDemoAnswer={(id) => deliverDemoReply(id, "answer")} onOpenKakomon={openKakomonOf} />
           )}
           {ask && (
-            <AskSheet me={me} posts={visiblePosts} preset={ask} context={eventsOpen ? "gather" : tab === "kakomon" ? "kakomon" : "home"} onClose={() => setAsk(null)} onSubmit={submitQuestion}
+            <AskSheet me={me} posts={visiblePosts} courseDict={courseDict} preset={ask} context={eventsOpen ? "gather" : tab === "kakomon" ? "kakomon" : "home"} onClose={() => setAsk(null)} onSubmit={submitQuestion}
               onJoin={joinQuestion} onOpenPost={(id) => { setAsk(null); openPost(id); }} onCreateEvent={() => { setAsk(null); setEventCreate(true); }} onShareKakomon={() => { setAsk(null); setShareOpen(true); }} />
           )}
           {ticketIntro && (
@@ -3096,7 +3193,7 @@
             const item = kakomon.find(k => k.id === kakomonId);
             return item ? <KakomonSheet item={item} tickets={tickets} onClose={() => setKakomonId(null)} onUnlock={unlockKakomon} onThanks={kakomonThanks} onEarn={goEarn} /> : null;
           })()}
-          {shareOpen && <ShareKakomonSheet onClose={() => setShareOpen(false)} onSubmit={shareKakomon} />}
+          {shareOpen && <ShareKakomonSheet courseDict={courseDict} onClose={() => setShareOpen(false)} onSubmit={shareKakomon} />}
           {odaiListOpen && <OdaiListPage posts={visiblePosts} term={term} me={me} onBack={() => setOdaiListOpen(false)} onOpen={openPost} />}
           {eventsOpen && (
             <EventsPage events={events} promos={promos} me={me} onBack={() => setEventsOpen(false)}
