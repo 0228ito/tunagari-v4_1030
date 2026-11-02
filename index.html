@@ -1175,7 +1175,7 @@
     // ============================================================
     // ✍️ 質問する（テンプレート → 穴うめ → 似た質問チェック → 投稿）
     // ============================================================
-    function AskSheet({ me, posts, preset, onClose, onSubmit, onJoin, onOpenPost, onCreateEvent, onShareKakomon }) {
+    function AskSheet({ me, posts, preset, context = "home", onClose, onSubmit, onJoin, onOpenPost, onCreateEvent, onShareKakomon }) {
       const [tpl, setTpl] = useState(preset && preset.tpl ? TEMPLATES.find(t => t.id === preset.tpl) : null);
       const [vals, setVals] = useState({});
       const [category, setCategory] = useState((preset && preset.cat) || "授業・過去問");
@@ -1201,49 +1201,46 @@
           <Sheet onClose={onClose}>
             <SheetHeader title="投稿する" icon="add_circle" onClose={onClose} />
             <div className="px-5 pb-6 pt-1 overflow-y-auto space-y-5">
-              {/* 主役：質問（テンプレート7つ） */}
-              <section className="space-y-2.5">
-                <div>
-                  <h4 className="font-head font-black text-[16px] flex items-center gap-1.5"><Icon n="help" fill size={20} className="text-brand-deep" />質問する</h4>
-                  <p className="text-[12.5px] text-sub">何について聞きたい？ 選ぶと、あとは空欄をうめるだけです。</p>
-                </div>
-              <div className="grid grid-cols-2 gap-2">
-                {TEMPLATES.map(t => (
-                  <button key={t.id} onClick={() => pick(t)} className={cx("text-left rounded-3xl p-3.5 flex flex-col gap-2 press border", t.id === "free" ? "bg-surface border-line" : "bg-sunk border-transparent")}>
-                    <span className="w-10 h-10 rounded-2xl bg-surface text-brand-deep flex items-center justify-center"><Icon n={t.icon} fill size={24} /></span>
-                    <span>
-                      <span className="block font-head font-black text-[14.5px] leading-tight">{t.label}</span>
-                      <span className="block text-[11.5px] text-sub mt-0.5">{t.sub}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-              </section>
-              {/* 「投稿」＝作れるものの完全な一覧。各画面のボタン（過去問タブの共有・集まりページの作成など）は、同じ名前・同じ画面への近道 */}
-              {[
-                { title: "人を集める", icon: "diversity_3", items: [
-                  { icon: "diversity_3", label: "仲間を募集・イベントを作る", sub: "勉強仲間などのゆるい募集も、日時と場所が決まったイベントも、ここから1つの画面で", onClick: onCreateEvent }
-                ] },
-                { title: "知恵を残す", icon: "upload_file", items: [
-                  { icon: "upload_file", label: "過去問・傾向メモを共有する", sub: `共有すると閲覧チケット+${TICKET_RULES.share}枚。先生が共有を禁止しているものはNG`, onClick: onShareKakomon }
-                ] }
-              ].map(g => (
-                <section key={g.title} className="space-y-2">
-                  <h4 className="font-head font-black text-[14px] text-sub flex items-center gap-1.5"><Icon n={g.icon} size={18} />{g.title}</h4>
-                  <div className="space-y-2">
-                    {g.items.map(x => (
-                      <button key={x.label} onClick={x.onClick} className="w-full text-left bg-surface border border-line rounded-2xl px-3.5 py-3 flex items-center gap-3 press">
-                        <span className="w-9 h-9 rounded-xl bg-sunk text-brand-deep flex items-center justify-center flex-shrink-0"><Icon n={x.icon} fill size={20} /></span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block font-bold text-[14px]">{x.label}</span>
-                          <span className="block text-[11.5px] text-sub leading-snug">{x.sub}</span>
-                        </span>
-                        <Icon n="chevron_right" className="text-mute" />
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
+              {/* 作る入口は下の「投稿」1か所だけ。開いた画面に合う項目を一番上に出す（ホーム＝質問／過去問タブ＝共有／仲間・イベント＝募集・イベント） */}
+              {(() => {
+                const qSection = (
+                  <section key="q" className="space-y-2.5">
+                    <div>
+                      <h4 className="font-head font-black text-[16px] flex items-center gap-1.5"><Icon n="help" fill size={20} className="text-brand-deep" />質問する</h4>
+                      <p className="text-[12.5px] text-sub">何について聞きたい？ 選ぶと、あとは空欄をうめるだけです。</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {TEMPLATES.map(t => (
+                        <button key={t.id} onClick={() => pick(t)} className={cx("text-left rounded-3xl p-3.5 flex flex-col gap-2 press border", t.id === "free" ? "bg-surface border-line" : "bg-sunk border-transparent")}>
+                          <span className="w-10 h-10 rounded-2xl bg-surface text-brand-deep flex items-center justify-center"><Icon n={t.icon} fill size={24} /></span>
+                          <span>
+                            <span className="block font-head font-black text-[14.5px] leading-tight">{t.label}</span>
+                            <span className="block text-[11.5px] text-sub mt-0.5">{t.sub}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+                const listSection = (key, title, icon, x, top) => (
+                  <section key={key} className="space-y-2">
+                    <h4 className={cx("font-head font-black flex items-center gap-1.5", top ? "text-[16px] text-ink" : "text-[14px] text-sub")}><Icon n={icon} fill={top} size={top ? 20 : 18} className={top ? "text-brand-deep" : ""} />{title}</h4>
+                    <button onClick={x.onClick} className={cx("w-full text-left rounded-2xl px-3.5 py-3 flex items-center gap-3 press", top ? "bg-brand-tint border-[1.5px] border-brand" : "bg-surface border border-line")}>
+                      <span className={cx("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0", top ? "bg-brand text-on-brand" : "bg-sunk text-brand-deep")}><Icon n={x.icon} fill size={20} /></span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-bold text-[14px]">{x.label}</span>
+                        <span className="block text-[11.5px] text-sub leading-snug">{x.sub}</span>
+                      </span>
+                      <Icon n="chevron_right" className={top ? "text-brand-deep" : "text-mute"} />
+                    </button>
+                  </section>
+                );
+                const gather = (top) => listSection("g", "人を集める", "diversity_3", { icon: "diversity_3", label: "仲間を募集・イベントを作る", sub: "勉強仲間などのゆるい募集も、日時と場所が決まったイベントも、ここから1つの画面で", onClick: onCreateEvent }, top);
+                const wisdom = (top) => listSection("w", "知恵を残す", "upload_file", { icon: "upload_file", label: "過去問・傾向メモを共有する", sub: `共有すると閲覧チケット+${TICKET_RULES.share}枚。先生が共有を禁止しているものはNG`, onClick: onShareKakomon }, top);
+                if (context === "kakomon") return [wisdom(true), qSection, gather(false)];
+                if (context === "gather") return [gather(true), qSection, wisdom(false)];
+                return [qSection, gather(false), wisdom(false)];
+              })()}
             </div>
           </Sheet>
         );
@@ -1690,7 +1687,7 @@
       );
     }
 
-    function KakomonTab({ items, tickets, courseFilter, setCourseFilter, onOpen, onShare, onEarn }) {
+    function KakomonTab({ items, tickets, courseFilter, setCourseFilter, onOpen, onEarn }) {
       const courses = Array.from(new Set(items.map(k => k.course)));
       const list = items.filter(k => !courseFilter || k.course === courseFilter);
       return (
@@ -1728,13 +1725,7 @@
             ))}
             {list.length === 0 && <EmptyState icon="description" text="この授業の過去問はまだありません" />}
           </div>
-          <button onClick={onShare} className="w-full bg-surface border-2 border-dashed border-brand/50 rounded-3xl p-4 flex items-center gap-3 press text-left">
-            <span className="w-11 h-11 rounded-2xl bg-brand-tint text-brand-deep flex items-center justify-center flex-shrink-0"><Icon n="upload_file" fill size={24} /></span>
-            <span className="flex-1">
-              <span className="block font-black text-[14.5px]">過去問・傾向メモを共有する</span>
-              <span className="block text-[12px] text-sub">共有すると閲覧チケット+{TICKET_RULES.share}枚</span>
-            </span>
-          </button>
+          <p className="text-[12.5px] text-sub bg-sunk rounded-2xl px-3.5 py-2.5 flex items-center gap-1.5"><Icon n="upload_file" size={18} className="text-brand-deep" /><span>過去問・傾向メモの共有は、下の<b className="text-ink">「投稿」</b>から（閲覧チケット+{TICKET_RULES.share}枚）</span></p>
           <p className="text-[11.5px] text-mute px-1 leading-relaxed">※ 先生が共有を禁止しているものは載せられません。閲覧はアプリ内だけで、保存・転載はできません。</p>
         </div>
       );
@@ -2009,7 +2000,7 @@
         "ヘッダーはメニューだけ。チケットは過去問タブ、QRはマイページ。チケットの説明は初めて回答したときに1回だけ出す",
         "絞り込み中の表示：「< ホーム」をやめ、色付きの帯に「絞り込み中」と条件の札（×で外せる）を出す。「すべて解除」で条件を全部外すとホームの表示に戻る（プロトタイプを触った人の声：解除方法が分かりにくい）",
         "ホームの絞り込みは検索欄の下の1列だけ：前期・後期で変わる話題（後期なら期末テスト・過去問／後期の履修／冬の通学／ゼミ選び／インターン）＋「もっと」で全カテゴリ。「あなた向け」見出し横の絞り込みは重複していたため削除",
-        "作る入口のルール：下の「投稿」＝作れるものの完全な一覧（質問する／人を集める＝仲間を募集・イベントを作る／知恵を残す＝過去問・傾向メモの共有）。過去問タブの共有ボタンや仲間・イベント画面の「作る」は、同じ名前・同じ画面への近道",
+        "作る入口は下の「投稿」1か所だけ：ホームの［先輩に質問する］、仲間・イベントの［作る］、過去問タブの［共有する］は削除。「投稿」を開くと、いまいる画面に合う項目が一番上に出る（ホーム＝質問／過去問タブ＝過去問の共有／仲間・イベント＝募集・イベント）。例外として、検索で見つからなかったときの「この内容で質問する」だけ残す（キーワードとカテゴリを引き継ぐため）。仲間・イベント画面でも下のメニューを常に表示",
         "質問のカテゴリーはテンプレートを選ぶと自動で決まる（選ばせない）。「自由に質問」のときだけ「どんな話題？」をボタンで1回選ぶ。運営のお題は学生には出さない",
         "仲間募集とイベントを統合：入口・入力画面・一覧を1つに。「日時・場所を決める」がオフ＝いつでも・ゆるい募集、オン＝イベント。反応は「参加したい＋ひとこと」にそろえた。日時ありは主催者名（団体名かニックネーム）が必須、日時なしは匿名もOK。仲間募集はQ&Aのカテゴリから外し「仲間・イベント」へ移した",
         "確かめ方：新入生に近い人にホームを5秒見せて「このアプリで何ができる？」と聞き、「先輩に聞ける」と答えてもらえるか"
@@ -2320,7 +2311,7 @@
       const filtered = tag || q;
       const clear = () => { setTag(""); setQ(""); };
       return (
-        <div className="fixed inset-0 z-[45] bg-bg flex flex-col animate-push-in" role="dialog" aria-label="仲間・イベント">
+        <div className="fixed inset-0 z-[25] bg-bg flex flex-col animate-push-in" role="region" aria-label="仲間・イベント">
           <div className="w-full max-w-md mx-auto flex-1 flex flex-col min-h-0 relative">
             <header className="px-2 pb-2 flex items-center gap-1 border-b border-line/70 bg-bg" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
               <button onClick={onBack} aria-label="ホームに戻る" className="w-11 h-11 rounded-full flex items-center justify-center press"><Icon n="arrow_back_ios_new" size={22} /></button>
@@ -2342,6 +2333,7 @@
                 <button onClick={() => setTag("")} className={CHIP(!tag)}>すべて</button>
                 {EVENT_TAGS.map(t => <button key={t} onClick={() => setTag(tag === t ? "" : t)} aria-pressed={tag === t} className={CHIP(tag === t)}>{t}</button>)}
               </ScrollRow>
+              <p className="text-[12px] text-sub bg-sunk rounded-2xl px-3 py-2 flex items-center gap-1.5"><Icon n="add_circle" size={16} className="text-brand-deep" />募集やイベントは、下の「投稿」から作れます</p>
               {filtered && <button onClick={clear} className="text-[12px] font-bold text-brand-deep flex items-center gap-0.5 press -mt-2"><Icon n="close" size={15} />絞り込みを解除</button>}
               {kind !== "anytime" && (
                 <section className="space-y-2.5">
@@ -2358,9 +2350,6 @@
                 </section>
               )}
             </div>
-            <button onClick={onCreate} aria-label="仲間を募集・イベントを作る" className="absolute right-5 w-14 h-14 rounded-full bg-brand text-on-brand shadow-lift flex flex-col items-center justify-center press" style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
-              <Icon n="add" size={26} /><span className="text-[10px] font-black leading-none">作る</span>
-            </button>
           </div>
         </div>
       );
@@ -2646,7 +2635,7 @@
       const showToast = (m) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 2600); };
       const pushNotice = (n) => { if (notif[n.kind === "join" ? "watch" : n.kind] === false) return; setNotices(prev => [{ id: `n${Date.now()}${Math.random()}`, at: Date.now(), read: false, ...n }, ...prev]); };
       const updatePost = (id, fn) => setPosts(prev => prev.map(p => p.id === id ? fn(p) : p));
-      const goHome = () => { setTab("home"); setQuery(""); setCatFilter(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      const goHome = () => { setEventsOpen(false); setTab("home"); setQuery(""); setCatFilter(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
       const openPost = (id) => {
         setSelectedPostId(id);
         updatePost(id, p => ({ ...p, views: p.views + 1 }));
@@ -2867,9 +2856,6 @@
                       ))}
                       <button onClick={() => setMoreCats(!moreCats)} aria-expanded={moreCats} className={cx(CHIP(false), "py-1")}><Icon n={moreCats ? "expand_less" : "more_horiz"} size={14} />{moreCats ? "閉じる" : "もっと"}</button>
                     </div>
-                    <button onClick={() => setAsk({})} className={cx(BTN_PRIMARY, "w-full flex items-center justify-center gap-1.5")}>
-                      <Icon n="help" fill size={20} />先輩に質問する
-                    </button>
                   </>)}
                 </div>
 
@@ -2962,7 +2948,7 @@
 
             {tab === "kakomon" && (
               <KakomonTab items={kakomon} tickets={tickets} courseFilter={kakomonCourse} setCourseFilter={setKakomonCourse}
-                onOpen={(k) => setKakomonId(k.id)} onShare={() => setShareOpen(true)} onEarn={goEarn} />
+                onOpen={(k) => setKakomonId(k.id)} onEarn={goEarn} />
             )}
 
             {tab === "notices" && (
@@ -2993,7 +2979,7 @@
                 </button>
               </div>
             ) : (
-              <button key={item.tab} onClick={() => { if (item.tab === "home") goHome(); else { setTab(item.tab); window.scrollTo(0, 0); } }} aria-label={item.tab === "notices" && unreadCount > 0 ? `お知らせ（未読${unreadCount}件）` : item.label} aria-current={tab === item.tab ? "page" : undefined}
+              <button key={item.tab} onClick={() => { if (item.tab === "home") goHome(); else { setEventsOpen(false); setTab(item.tab); window.scrollTo(0, 0); } }} aria-label={item.tab === "notices" && unreadCount > 0 ? `お知らせ（未読${unreadCount}件）` : item.label} aria-current={tab === item.tab ? "page" : undefined}
                 className={cx("flex flex-col items-center gap-0.5 py-1.5 px-1.5 rounded-full min-w-[58px] press", tab === item.tab ? "text-brand-deep font-black" : "text-mute font-bold")}>
                 <span className="relative">
                   <Icon n={item.icon} fill={tab === item.tab} size={24} />
@@ -3015,7 +3001,7 @@
               onDemoAnswer={(id) => deliverDemoReply(id, "answer")} onOpenKakomon={openKakomonOf} />
           )}
           {ask && (
-            <AskSheet me={me} posts={visiblePosts} preset={ask} onClose={() => setAsk(null)} onSubmit={submitQuestion}
+            <AskSheet me={me} posts={visiblePosts} preset={ask} context={eventsOpen ? "gather" : tab === "kakomon" ? "kakomon" : "home"} onClose={() => setAsk(null)} onSubmit={submitQuestion}
               onJoin={joinQuestion} onOpenPost={(id) => { setAsk(null); openPost(id); }} onCreateEvent={() => { setAsk(null); setEventCreate(true); }} onShareKakomon={() => { setAsk(null); setShareOpen(true); }} />
           )}
           {ticketIntro && (
