@@ -751,7 +751,8 @@
       summary: { icon: "auto_awesome",      label: "AIが回答をまとめました" },
       ticket:  { icon: "confirmation_number", label: "閲覧チケット" },
       react:   { icon: "lightbulb", label: "あなたのペタに「なるほど」" },
-      event:   { icon: "diversity_3", label: "あなたの募集に「参加したい」が届きました" }
+      event:   { icon: "diversity_3", label: "あなたの募集に「参加したい」が届きました" },
+      connect: { icon: "handshake", label: "QRでつながりました" }
     };
 
     const DOC_GUIDE = [
@@ -2137,7 +2138,7 @@
 
               {sub === "notif" && (
                 <Group title="お知らせを受け取る">
-                  {[["answer", "自分の質問への回答"], ["watch", "「気になる」「一緒に待つ」した質問の回答"], ["thanks", "自分の回答への「助かった！」"], ["summary", "AIの回答まとめができたとき"]].map(([k, l]) => (
+                  {[["answer", "自分の質問への回答"], ["watch", "「気になる」「一緒に待つ」した質問の回答"], ["thanks", "自分の回答への「助かった！」"], ["summary", "AIの回答まとめができたとき"], ["connect", "QRでだれかとつながったとき"]].map(([k, l]) => (
                     <div key={k} className="flex items-center gap-3 px-4 py-3.5">
                       <span className="flex-1 text-[14px] font-bold">{l}</span>
                       <Toggle on={notif[k] !== false} label={l} onChange={(v) => setNotif({ ...notif, [k]: v })} />
@@ -2637,25 +2638,45 @@
       );
     }
 
-    function ConnectSheet({ profile, onClose, onConnected }) {
-      const [step, setStep] = useState("mine");   // mine → scanning → result
+    // 🤝 つながる（QRを読み取る／読み取られる → お互いの「つながった人」に追加 → 相手にもお知らせ）
+    function ConnectSheet({ profile, connections = [], onClose, onConnected, onOpenList }) {
+      const [step, setStep] = useState("mine");   // mine → scanning → result ／ mine → (読み取られる) → result
       const [who, setWho] = useState(null);
-      const scan = () => {
-        setStep("scanning");
-        setTimeout(() => { const p = SAMPLE_PROFILES[Math.floor(Math.random() * SAMPLE_PROFILES.length)]; setWho(p); setStep("result"); onConnected(p); }, 1600);
+      const [how, setHow] = useState("scan");     // scan＝自分が読み取った／scanned＝相手に読み取られた
+      const [already, setAlready] = useState(false);
+      const timer = useRef(null);
+      useEffect(() => () => clearTimeout(timer.current), []);
+      const nextPerson = () => SAMPLE_PROFILES.find(p => !connections.some(c => c.id === p.id)) || SAMPLE_PROFILES[0];
+      const finish = (p, mode) => {
+        const was = connections.some(c => c.id === p.id);
+        setWho(p); setHow(mode); setAlready(was); setStep("result");
+        if (!was) onConnected(p, mode);
       };
+      const scan = () => { setStep("scanning"); timer.current = setTimeout(() => finish(nextPerson(), "scan"), 1600); };
+      // デモ：自分のQRを表示している間に、友だちに読み取られた場合
+      const beScanned = () => { setStep("waiting"); timer.current = setTimeout(() => finish(nextPerson(), "scanned"), 1800); };
       return (
         <Sheet onClose={onClose} z={58}>
-          <SheetHeader title={step === "result" ? "プロフィール" : "つながる"} icon="qr_code_2" onBack={step === "result" ? () => setStep("mine") : null} onClose={onClose} />
-          <div className="px-5 pb-6 pt-1 overflow-y-auto space-y-4">
-            {step === "mine" && (<>
-              <div className="flex flex-col items-center gap-3 bg-sunk rounded-3xl p-5">
+          <SheetHeader title={step === "result" ? "つながりました" : "つながる"} icon={step === "result" ? "handshake" : "qr_code_2"} onBack={step === "result" ? () => setStep("mine") : null} onClose={onClose} />
+          <div className="px-5 pb-4 pt-1 overflow-y-auto space-y-4 flex-1">
+            {(step === "mine" || step === "waiting") && (<>
+              <div className="flex flex-col items-center gap-3 bg-sunk rounded-3xl p-5 relative">
                 <FakeQr seed={(profile.nick || "x").charCodeAt(0)} size={196} />
                 <p className="font-head font-black text-[16px]">{profile.nick || "ニックネーム未設定"}</p>
-                <p className="text-[12.5px] text-sub text-center leading-relaxed">このコードを友だちに読み込んでもらうと、<br />あなたのプロフィールが表示されます</p>
+                <p className="text-[12.5px] text-sub text-center leading-relaxed">このコードを友だちに読み込んでもらうと、<br />お互いのプロフィールが表示されます</p>
+                {step === "waiting" && (
+                  <div className="absolute inset-0 rounded-3xl bg-surface/85 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 animate-fade-in">
+                    <span className="w-12 h-12 rounded-full bg-brand text-on-brand flex items-center justify-center animate-pulse"><Icon n="qr_code_scanner" size={26} /></span>
+                    <p className="font-black text-[14px]">読み取られました。つないでいます…</p>
+                  </div>
+                )}
               </div>
-              <button onClick={scan} className={cx(BTN_PRIMARY, "w-full flex items-center justify-center gap-1.5")}><Icon n="photo_camera" fill size={20} />友だちのコードを読み取る（カメラ）</button>
-              <p className="text-[11.5px] text-mute text-center">フォロー・フォロワーはありません。読み取った人の一覧はマイページに残ります。<br />（デモ：QR風の模様で、実際の読み取りは行いません）</p>
+              <button onClick={scan} disabled={step === "waiting"} className={cx(BTN_PRIMARY, "w-full flex items-center justify-center gap-1.5")}><Icon n="photo_camera" fill size={20} />友だちのコードを読み取る（カメラ）</button>
+              <p className="text-[11.5px] text-mute text-center">どちらが読み取っても、お互いの「つながった人」に追加されます。<br />フォロー・フォロワーはありません。</p>
+              <div className="border-t border-dashed border-line pt-3 text-center">
+                <button onClick={beScanned} disabled={step === "waiting"} className="text-[12px] font-bold text-brand-deep press underline underline-offset-2">（デモ）友だちにこのコードを読み取ってもらう</button>
+                <p className="text-[11px] text-mute mt-1">QR風の模様で、実際の読み取りは行いません</p>
+              </div>
             </>)}
             {step === "scanning" && (
               <div className="aspect-square rounded-3xl bg-[#111] relative overflow-hidden flex items-center justify-center">
@@ -2663,8 +2684,25 @@
                 <p className="absolute bottom-4 text-white text-[13px] font-bold">読み取り中…</p>
               </div>
             )}
-            {step === "result" && who && <ProfileCard p={who} common={commonOf(profile, who)} />}
+            {step === "result" && who && (<>
+              <div className={cx("rounded-3xl p-3.5 flex items-start gap-3 animate-fade-up", already ? "bg-sunk" : "bg-brand text-on-brand")}>
+                <span className={cx("w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0", already ? "bg-surface text-brand-deep" : "bg-on-brand/20")}><Icon n={already ? "check" : "handshake"} fill size={22} /></span>
+                <span className="min-w-0">
+                  <span className="block font-black text-[15px] leading-snug">
+                    {already ? `${who.nick}さんとは、すでにつながっています` : how === "scan" ? `${who.nick}さんとつながりました！` : `${who.nick}さんがあなたのコードを読み取り、つながりました！`}
+                  </span>
+                  {!already && <span className="block text-[12px] opacity-90 leading-relaxed mt-0.5">{how === "scan" ? `${who.nick}さんにもお知らせが届き、相手の「つながった人」にもあなたが追加されます。` : "お互いの「つながった人」に追加されました。"}</span>}
+                </span>
+              </div>
+              <ProfileCard p={who} common={commonOf(profile, who)} />
+            </>)}
           </div>
+          {step === "result" && (
+            <div className="px-4 pt-3 pb-4 border-t border-line grid grid-cols-2 gap-2">
+              <button onClick={() => { setWho(null); setStep("mine"); }} className={cx(BTN_SOFT, "flex items-center justify-center gap-1 text-[13.5px]")}><Icon n="qr_code_scanner" size={18} />続けてつながる</button>
+              <button onClick={onOpenList} className={cx(BTN_PRIMARY, "flex items-center justify-center gap-1 text-[13.5px]")}><Icon n="group" size={18} />つながった人を見る</button>
+            </div>
+          )}
         </Sheet>
       );
     }
@@ -2844,8 +2882,10 @@
           pushNotice({ kind: "event", title: v.title, preview: "あなたのイベントに「参加したい」が届きました（相手への連絡は主催者から）" });
         }, DEMO_REPLY_MS);
       };
-      const onConnected = (p) => {
-        setConnections(prev => prev.some(x => x.id === p.id) ? prev : [{ ...p, at: Date.now() }, ...prev]);
+      // つながったら、お互いの一覧に追加。相手側にもお知らせが届く（本番）／自分が読み取られた側ならお知らせを受け取る
+      const onConnected = (p, how) => {
+        setConnections(prev => prev.some(x => x.id === p.id) ? prev : [{ ...p, at: Date.now(), how }, ...prev]);
+        if (how === "scanned") pushNotice({ kind: "connect", title: `${p.nick}さん（${p.fac}）があなたのQRを読み取りました`, preview: "お互いの「つながった人」に追加されました。押すとプロフィールを見られます", profile: p });
       };
       const toggleThanks = (postId, cid) => updatePost(postId, p => ({
         ...p, comments: p.comments.map(c => c.id === cid ? { ...c, liked: !c.liked, thanks: (c.thanks || 0) + (c.liked ? -1 : 1) } : c)
@@ -2919,6 +2959,7 @@
         setNotices(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
         if (n.postId && posts.some(p => p.id === n.postId)) openPost(n.postId);
         else if (n.kind === "ticket") setTab("kakomon");
+        else if (n.kind === "connect" && n.profile) setViewProfile(n.profile);
       };
 
       // ---- ホームの並び ----
@@ -3202,7 +3243,8 @@
           {eventId && (() => { const ev = events.find(e => e.id === eventId); return ev ? <EventSheet ev={ev} onClose={() => setEventId(null)} onInterest={toggleInterest} onCloseGather={closeGather} onReport={(id) => setReportTarget({ eventId: id })} /> : null; })()}
           {promoId && <PromoSheet promo={promos.find(p => p.id === promoId)} onClose={() => setPromoId(null)} showToast={showToast} />}
           {eventCreate && <EventCreateSheet nick={profile.nick} onClose={() => setEventCreate(false)} onSubmit={createEvent} />}
-          {connectOpen && <ConnectSheet profile={profile} onClose={() => setConnectOpen(false)} onConnected={onConnected} />}
+          {connectOpen && <ConnectSheet profile={profile} connections={connections} onClose={() => setConnectOpen(false)} onConnected={onConnected}
+            onOpenList={() => { setConnectOpen(false); closeOverlays(); setTab("me"); }} />}
           {profileEdit && <ProfileEditSheet profile={profile} onClose={() => setProfileEdit(false)} onSave={(p) => { setProfile(p); setProfileEdit(false); showToast("保存しました"); }} />}
           {viewProfile && (
             <Sheet onClose={() => setViewProfile(null)} z={58}>
