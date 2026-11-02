@@ -1144,7 +1144,8 @@
 
     // ============================================================
     // ✍️ 投稿する（質問する／人を集める／知恵を残す の3つを1行ずつ）
-    //   ・質問は1つの画面：まず聞きたいことを書く → 話題を選ぶ（書いた文から自動で選ぶ）→ 話題に合った「書き方の例」を押すと文が入る
+    //   ・質問は1つの画面：まず話題を選ぶ → 話題に合った「書き方の例」が出る → 例を押して書きかえる／例を見て自分で書く
+    //     （話題を選ばずに書いた場合は、書いた文から話題を自動で選ぶ）
     //   ・旧：テンプレート7つから選ぶ形（選ぶ＝実質カテゴリ選びで、投稿メニューの形もそろっていなかった）
     // ============================================================
     const Q_SUGGEST = {
@@ -1170,6 +1171,8 @@
     ];
     const guessCategory = (t) => { const hit = Q_GUESS.find(([, re]) => re.test(t)); return hit ? hit[0] : ""; };
     const Q_EXAMPLE = { "前期": "例：履修登録、みんな何を参考にした？", "後期": "例：期末テストの過去問、どこで手に入る？" };
+
+    const StepNum = ({ n }) => <span className="w-[18px] h-[18px] rounded-full bg-brand text-on-brand text-[11px] font-black inline-flex items-center justify-center">{n}</span>;
 
     function AskSheet({ me, posts, preset, context = "home", onClose, onSubmit, onJoin, onOpenPost, onCreateEvent, onShareKakomon }) {
       const [mode, setMode] = useState(preset && (preset.cat || preset.text) ? "question" : "menu");
@@ -1232,19 +1235,11 @@
         <Sheet onClose={onClose}>
           <SheetHeader title="先輩に質問する" icon="help" onBack={() => setMode("menu")} onClose={onClose} />
           <div className="px-5 pb-4 pt-1 overflow-y-auto space-y-4 flex-1">
-            {/* ① 聞きたいこと */}
+            {/* ① 話題を選ぶ（先に選ぶと、その話題の書き方の例が出る） */}
             <div>
-              <label className={LABEL} htmlFor="ask-text">聞きたいこと</label>
-              <textarea id="ask-text" ref={textRef} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder={Q_EXAMPLE[term]}
-                className={cx(INPUT, "leading-relaxed text-[15px] font-bold")} />
-              {hasBlank && <p className="text-[12px] font-bold text-danger-ink mt-1.5 flex items-center gap-1"><Icon n="edit" size={14} />【 】の部分を書きかえてください</p>}
-            </div>
-
-            {/* ② 話題（書いた文から自動で選ぶ。押して選び直せる） */}
-            <div>
-              <div className="flex items-baseline justify-between">
-                <span className={LABEL}>話題</span>
-                {category && <span className="text-[11px] text-mute">{catManual ? "選んだ話題" : "書いた内容から自動で選びました"}・「{catMeta(category).short}」に表示されます</span>}
+              <div className="flex items-baseline justify-between gap-2">
+                <span className={cx(LABEL, "flex items-center gap-1.5")}><StepNum n={1} />話題を選ぶ</span>
+                {category && <span className="text-[11px] text-mute text-right">{catManual ? "" : "書いた内容から自動で選びました・"}「{catMeta(category).short}」に表示されます</span>}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {CATEGORIES.filter(c => c.key !== "運営のお題").map(c => (
@@ -1256,10 +1251,10 @@
               </div>
             </div>
 
-            {/* ③ 書き方の例（話題を選ぶと出る。押すと「聞きたいこと」に入る） */}
-            {category && Q_SUGGEST[category] && (
+            {/* ② 書き方の例（話題を選ぶと出る。押すと「聞きたいこと」に入る。見るだけでもOK） */}
+            {category && Q_SUGGEST[category] ? (
               <div className="bg-sunk rounded-3xl p-3.5 space-y-2 animate-fade-in">
-                <p className="text-[12px] font-black text-sub flex items-center gap-1"><Icon n="lightbulb" fill size={15} className="text-brand-deep" />書き方の例（押すと入ります）</p>
+                <p className="text-[12px] font-black text-sub flex items-center gap-1"><Icon n="lightbulb" fill size={15} className="text-brand-deep" />「{catMeta(category).short}」の書き方の例（押すと下に入ります）</p>
                 {Q_SUGGEST[category].map(s => (
                   <button key={s} type="button" onClick={() => useSuggest(s)} className="w-full text-left bg-surface rounded-2xl px-3 py-2.5 text-[13.5px] font-bold leading-snug press border border-line/70 flex gap-1.5">
                     <span className="text-brand font-black">Q.</span>
@@ -1267,7 +1262,18 @@
                   </button>
                 ))}
               </div>
+            ) : (
+              <p className="text-[12px] text-mute flex items-center gap-1 -mt-1"><Icon n="lightbulb" size={15} />話題を選ぶと、先輩に伝わりやすい書き方の例が出ます</p>
             )}
+
+            {/* ③ 聞きたいこと（例を押して書きかえても、例を見て自分で書いてもOK） */}
+            <div>
+              <label className={cx(LABEL, "flex items-center gap-1.5")} htmlFor="ask-text"><StepNum n={2} />聞きたいことを書く</label>
+              <textarea id="ask-text" ref={textRef} rows={2} value={text} onChange={(e) => setText(e.target.value)}
+                placeholder={category ? "上の例を押して書きかえるか、自由に書いてください" : Q_EXAMPLE[term]}
+                className={cx(INPUT, "leading-relaxed text-[15px] font-bold")} />
+              {hasBlank && <p className="text-[12px] font-bold text-danger-ink mt-1.5 flex items-center gap-1"><Icon n="edit" size={14} />【 】の部分を書きかえてください</p>}
+            </div>
 
             {/* 🔗 似ている質問（合流するかは自分で決める） */}
             {similar.length > 0 && (
@@ -1978,7 +1984,7 @@
         "絞り込み中の表示：「< ホーム」をやめ、色付きの帯に「絞り込み中」と条件の札（×で外せる）を出す。「すべて解除」で条件を全部外すとホームの表示に戻る（プロトタイプを触った人の声：解除方法が分かりにくい）",
         "ホームの絞り込みは検索欄の下の1列だけ：前期・後期で変わる話題（後期なら期末テスト・過去問／後期の履修／冬の通学／ゼミ選び／インターン）＋「もっと」で全カテゴリ。「あなた向け」見出し横の絞り込みは重複していたため削除",
         "作る入口は下の「投稿」1か所だけ：ホームの［先輩に質問する］、仲間・イベントの［作る］、過去問タブの［共有する］は削除。「投稿」を開くと、いまいる画面に合う項目が一番上に出る（ホーム＝質問／過去問タブ＝過去問の共有／仲間・イベント＝募集・イベント）。例外として、検索で見つからなかったときの「この内容で質問する」だけ残す（キーワードとカテゴリを引き継ぐため）。仲間・イベント画面でも下のメニューを常に表示",
-        "質問は1つの画面：「聞きたいこと」を書く → 話題（書いた文から自動で選ぶ・押して選び直せる）→ 話題に合った「書き方の例」を押すと文が入り、【授業名】などの空欄が選ばれた状態になる。テンプレート7つから選ぶ形はやめ、「投稿」の中は質問する／人を集める／知恵を残すの3行にそろえた。運営のお題は学生には出さない",
+        "質問は1つの画面：①話題を選ぶ → 話題に合った「書き方の例」が出る → ②例を押して【授業名】などを書きかえる、または例を見て自分で書く（話題を選ばずに書いた場合は、書いた文から話題を自動で選ぶ）。何を書けばいいか分からない人のために、話題を先に置いた。テンプレート7つから選ぶ形はやめ、「投稿」の中は質問する／人を集める／知恵を残すの3行にそろえた。運営のお題は学生には出さない",
         "仲間募集とイベントを統合：入口・入力画面・一覧を1つに。「日時・場所を決める」がオフ＝いつでも・ゆるい募集、オン＝イベント。反応は「参加したい＋ひとこと」にそろえた。日時ありは主催者名（団体名かニックネーム）が必須、日時なしは匿名もOK。仲間募集はQ&Aのカテゴリから外し「仲間・イベント」へ移した",
         "確かめ方：新入生に近い人にホームを5秒見せて「このアプリで何ができる？」と聞き、「先輩に聞ける」と答えてもらえるか"
       ] },
