@@ -2015,6 +2015,8 @@
     function MenuPage({ me, termMode, setTermMode, notif, setNotif, onClose, onEditProfile, onLogout }) {
       useScrollLock();
       const [sub, setSub] = useState(null);
+      const bodyRef = useRef(null);
+      useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [sub]);   // 設定の中のページを切り替えたら先頭へ
       const title = sub === "guide" ? "ガイドライン" : sub === "about" ? "このプロトタイプについて" : sub === "notif" ? "通知設定" : sub === "plan" ? "お題の年間プラン" : "設定";
       const Row = ({ icon, label, sub: s, onClick, right, danger }) => (
         <button onClick={onClick} className={cx("w-full flex items-center gap-3 px-4 py-3.5 text-left press", danger ? "text-danger-ink" : "")}>
@@ -2037,7 +2039,7 @@
               <h2 className="flex-1 text-center font-head font-black text-[17px]">{title}</h2>
               <button onClick={onClose} aria-label="閉じる" className="w-11 h-11 rounded-full flex items-center justify-center press"><Icon n="close" size={24} /></button>
             </header>
-            <div className="flex-1 overflow-y-auto px-4 pt-4 space-y-5" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
+            <div ref={bodyRef} className="flex-1 overflow-y-auto px-4 pt-4 space-y-5" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
               {!sub && (<>
                 <Group title="あなた">
                   <Row icon="badge" label="学部・学年・匿名の設定" sub={`${me.faculty} ${gradeLabel(me.grade)}・${me.anonDefault ? "ふだんは匿名" : "学部・学年を表示"}`} onClick={onEditProfile} />
@@ -2806,6 +2808,12 @@
       const openGathers = events.filter(e => !e.closed);
 
       // ------------------------------------------------------------
+      // 📜 画面が切り替わったらスクロール位置を先頭に戻す
+      //   （タブの切り替え／検索・絞り込みに入る・条件を変える・解除する／仲間・イベント画面の開閉／ログイン直後）
+      //   ※ 質問の詳細などのシートを閉じたときは、元の位置のまま（画面遷移ではないため）
+      const screenKey = `${stage}|${tab}|${searching ? 1 : 0}|${catFilter}|${eventsOpen ? 1 : 0}`;
+      useEffect(() => { window.scrollTo(0, 0); }, [screenKey]);
+
       if (stage === "gate") return <GateScreen onEnter={() => setStage("onboard")} />;
       if (stage === "onboard") return <OnboardingScreen onDone={(v) => { setMe(v); setStage("app"); window.scrollTo(0, 0); }} />;
 
