@@ -354,36 +354,6 @@
 
     const REPORT_REASONS = ["誹謗中傷・個人が特定できる内容", "虚偽・誤った情報", "広告・宣伝・勧誘", "過去問の共有が禁止されている授業のもの", "その他"];
 
-    // ============================================================
-    // 📝 質問テンプレート（小樽商大WS：「長い文章を考えずに、学内限定でテンプレートから手軽に質問できる」が高評価）
-    // ============================================================
-    const TEMPLATES = [
-      { id: "class", icon: "school", label: "授業のリアル", sub: "テスト・課題・先生", cat: "授業・過去問",
-        fields: [
-          { k: "course", label: "授業名", ph: `例：${U.courseA}`, chips: [U.courseA, U.courseB, U.courseC] },
-          { k: "point", label: "知りたいこと", ph: "例：テストの難しさ", chips: ["テストの難しさ", "課題の重さ", "先生の雰囲気", "出席の取り方"] }
-        ], make: v => `【${v.course}】の${v.point}を教えてください` },
-      { id: "kakomon", icon: "description", label: "過去問・出題傾向", sub: "期末・小テスト", cat: "授業・過去問",
-        fields: [{ k: "course", label: "授業名", ph: `例：${U.courseA}`, chips: [U.courseA, U.courseB, U.courseC] }],
-        make: v => `【${v.course}】の過去問や出題傾向を知っている人いますか？` },
-      { id: "rakutan", icon: "event_note", label: "おすすめの授業", sub: "履修・楽単", cat: "履修・楽単",
-        fields: [{ k: "cond", label: "条件", ph: "例：水曜3限の教養科目", chips: ["水曜3限", "レポートだけで評価", "教養科目", "1年でも取れる"] }],
-        make: v => `${v.cond}で取れるおすすめの授業はありますか？` },
-      { id: "zemi", icon: "groups", label: "ゼミ・研究室の実態", sub: "雰囲気・選考", cat: "ゼミ・研究室",
-        fields: [
-          { k: "name", label: "ゼミ・研究室名", ph: "例：〇〇ゼミ" },
-          { k: "point", label: "知りたいこと", ph: "例：雰囲気", chips: ["雰囲気", "活動の頻度", "選考のこと", "就活との両立"] }
-        ], make: v => `${v.name}の${v.point}を知りたいです` },
-      { id: "job", icon: "work", label: "就活・インターン", sub: "先輩の体験", cat: "就活・インターン",
-        fields: [{ k: "topic", label: "知りたいこと", ph: "例：インターンはいつから準備した？", chips: ["インターンはいつから準備した？", "ガクチカはどう作った？", "ESで気をつけたことは？"] }],
-        make: v => `就活を終えた先輩へ：${v.topic}` },
-      { id: "hack", icon: "lightbulb", label: "〇〇のコツ", sub: "勉強法・暮らし", cat: "生活ハック",
-        fields: [{ k: "theme", label: "テーマ", ph: "例：テスト勉強", chips: ["テスト勉強", "レポートの書き方", "教授へのメール", "自炊", "朝起きる方法", `${U.lms}の使い方`] }],
-        make: v => `${v.theme}のコツを教えてください` },
-      { id: "free", icon: "edit", label: "自由に質問", sub: "テンプレートを使わない", cat: null,
-        fields: [{ k: "text", label: "聞きたいこと", ph: "例：後期からでも入れるサークルはある？" }],
-        make: v => v.text }
-    ];
     const ASK_TO = [
       { v: "senpai", label: "先輩に", icon: "school" },
       { v: "same", label: "同じ学年に", icon: "group" },
@@ -1173,123 +1143,131 @@
     }
 
     // ============================================================
-    // ✍️ 質問する（テンプレート → 穴うめ → 似た質問チェック → 投稿）
+    // ✍️ 投稿する（質問する／人を集める／知恵を残す の3つを1行ずつ）
+    //   ・質問は1つの画面：まず聞きたいことを書く → 話題を選ぶ（書いた文から自動で選ぶ）→ 話題に合った「書き方の例」を押すと文が入る
+    //   ・旧：テンプレート7つから選ぶ形（選ぶ＝実質カテゴリ選びで、投稿メニューの形もそろっていなかった）
     // ============================================================
+    const Q_SUGGEST = {
+      "授業・過去問": ["【授業名】のテストの難しさを教えてください", "【授業名】の過去問や出題傾向を知っている人いますか？", "【授業名】の課題の量や先生の雰囲気はどうですか？"],
+      "履修・楽単": ["【曜日・時限】で取れるおすすめの授業はありますか？", "レポートだけで評価される教養科目を知りたいです", "履修を決めるとき、何を基準に選びましたか？"],
+      "ゼミ・研究室": ["【ゼミ名】の雰囲気や活動の頻度を知りたいです", "ゼミ・研究室選びで、見ておけばよかったことは？"],
+      "就活・インターン": ["インターンはいつから準備しましたか？", "ガクチカはどうやって作りましたか？", "ESで気をつけたことを教えてください"],
+      "生活ハック": ["【テーマ】のコツを教えてください", "教授へのメールの書き方のコツは？", "テスト勉強の計画、どう立てていますか？"],
+      "新歓・サークル": ["後期からでも入りやすいサークルはありますか？", "【サークル名】の活動頻度や費用を知りたいです"],
+      "暮らし・通学": [`${U.winter}、みんなどうしてる？`, "一人暮らしで買ってよかったもの・いらなかったものは？"],
+      "その他": ["【聞きたいこと】について、経験のある人いますか？"]
+    };
+    const Q_PLACEHOLDER = /【(授業名|曜日・時限|ゼミ名|テーマ|サークル名|聞きたいこと)】/;
+    // 書いた文から話題を推測（本番はAIで判定する想定）
+    const Q_GUESS = [
+      ["授業・過去問", /過去問|テスト|試験|授業|講義|課題|先生|教授|単位/],
+      ["履修・楽単", /履修|楽単|時間割|教養/],
+      ["ゼミ・研究室", /ゼミ|研究室/],
+      ["就活・インターン", /就活|インターン|ES|ガクチカ|企業/],
+      ["新歓・サークル", /サークル|部活|新歓/],
+      ["暮らし・通学", /一人暮らし|家賃|通学|雪|バス|自転車|自炊|引っ越/],
+      ["生活ハック", /コツ|勉強法|メール|レポート|朝|起き/]
+    ];
+    const guessCategory = (t) => { const hit = Q_GUESS.find(([, re]) => re.test(t)); return hit ? hit[0] : ""; };
+    const Q_EXAMPLE = { "前期": "例：履修登録、みんな何を参考にした？", "後期": "例：期末テストの過去問、どこで手に入る？" };
+
     function AskSheet({ me, posts, preset, context = "home", onClose, onSubmit, onJoin, onOpenPost, onCreateEvent, onShareKakomon }) {
-      const [tpl, setTpl] = useState(preset && preset.tpl ? TEMPLATES.find(t => t.id === preset.tpl) : null);
-      const [vals, setVals] = useState({});
-      const [category, setCategory] = useState((preset && preset.cat) || "授業・過去問");
+      const [mode, setMode] = useState(preset && (preset.cat || preset.text) ? "question" : "menu");
+      const [text, setText] = useState((preset && preset.text) || "");
+      const [catManual, setCatManual] = useState((preset && preset.cat && preset.cat !== "運営のお題") ? preset.cat : "");
       const [askTo, setAskTo] = useState("senpai");
       const [detail, setDetail] = useState("");
       const [anon, setAnon] = useState(me.anonDefault);
       const [joinTarget, setJoinTarget] = useState(null);
       const [joinNote, setJoinNote] = useState("");
+      const textRef = useRef(null);
 
-      const pick = (t) => {
-        setTpl(t); setVals({});
-        setCategory(t.cat || (preset && preset.cat && preset.cat !== "運営のお題" ? preset.cat : ""));
-        setAskTo("senpai");
+      const title = text.trim();
+      const autoCat = guessCategory(title);
+      const category = catManual || autoCat;
+      const hasBlank = Q_PLACEHOLDER.test(title);
+      const ready = title.length >= 5 && !!category && !hasBlank;
+      const similar = useMemo(() => (title.length >= 5 && !hasBlank ? findSimilarQuestions(posts, title, category) : []), [title, category, posts, hasBlank]);
+      const term = autoTerm();
+
+      // 書き方の例を入れたら、最初の【 】を選んだ状態にする（そのまま打てば置きかわる）
+      const useSuggest = (s) => {
+        setText(s);
+        setTimeout(() => {
+          const el = textRef.current; if (!el) return;
+          const m = s.match(Q_PLACEHOLDER);
+          el.focus();
+          if (m) el.setSelectionRange(m.index, m.index + m[0].length);
+        }, 0);
       };
-      // カテゴリー：テンプレートを選んだら自動で決まる（選ばせない）。「自由に質問」のときだけボタンで1回選ぶ
-      const ready = tpl && tpl.fields.every(f => f.optional || String(vals[f.k] || "").trim()) && !!category;
-      const title = tpl && ready ? tpl.make(Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, String(v).trim()]))) : "";
-      const similar = useMemo(() => (title ? findSimilarQuestions(posts, title, category) : []), [title, category, posts]);
-      const recruit = category === "仲間募集";
 
-      if (!tpl) {
+      if (mode === "menu") {
+        const row = (key, title, icon, x, top) => (
+          <section key={key} className="space-y-2">
+            <h4 className={cx("font-head font-black flex items-center gap-1.5", top ? "text-[16px] text-ink" : "text-[14px] text-sub")}><Icon n={icon} fill={top} size={top ? 20 : 18} className={top ? "text-brand-deep" : ""} />{title}</h4>
+            <button onClick={x.onClick} className={cx("w-full text-left rounded-2xl px-3.5 py-3 flex items-center gap-3 press", top ? "bg-brand-tint border-[1.5px] border-brand" : "bg-surface border border-line")}>
+              <span className={cx("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0", top ? "bg-brand text-on-brand" : "bg-sunk text-brand-deep")}><Icon n={x.icon} fill size={20} /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-bold text-[14px]">{x.label}</span>
+                <span className="block text-[11.5px] text-sub leading-snug">{x.sub}</span>
+              </span>
+              <Icon n="chevron_right" className={top ? "text-brand-deep" : "text-mute"} />
+            </button>
+          </section>
+        );
+        const q = (top) => row("q", "質問する", "help", { icon: "help", label: "先輩に質問する", sub: "授業・過去問・ゼミ・暮らしなど。書き方の例もあります", onClick: () => setMode("question") }, top);
+        const g = (top) => row("g", "人を集める", "diversity_3", { icon: "diversity_3", label: "仲間を募集・イベントを作る", sub: "勉強仲間などのゆるい募集も、日時と場所が決まったイベントも、ここから1つの画面で", onClick: onCreateEvent }, top);
+        const w = (top) => row("w", "知恵を残す", "upload_file", { icon: "upload_file", label: "過去問・傾向メモを共有する", sub: `共有すると閲覧チケット+${TICKET_RULES.share}枚。先生が共有を禁止しているものはNG`, onClick: onShareKakomon }, top);
+        // 開いた画面に合う項目を一番上に（ホーム＝質問／過去問タブ＝共有／仲間・イベント＝募集・イベント）
+        const order = context === "kakomon" ? [w(true), q(false), g(false)] : context === "gather" ? [g(true), q(false), w(false)] : [q(true), g(false), w(false)];
         return (
           <Sheet onClose={onClose}>
             <SheetHeader title="投稿する" icon="add_circle" onClose={onClose} />
-            <div className="px-5 pb-6 pt-1 overflow-y-auto space-y-5">
-              {/* 作る入口は下の「投稿」1か所だけ。開いた画面に合う項目を一番上に出す（ホーム＝質問／過去問タブ＝共有／仲間・イベント＝募集・イベント） */}
-              {(() => {
-                const qSection = (
-                  <section key="q" className="space-y-2.5">
-                    <div>
-                      <h4 className="font-head font-black text-[16px] flex items-center gap-1.5"><Icon n="help" fill size={20} className="text-brand-deep" />質問する</h4>
-                      <p className="text-[12.5px] text-sub">何について聞きたい？ 選ぶと、あとは空欄をうめるだけです。</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TEMPLATES.map(t => (
-                        <button key={t.id} onClick={() => pick(t)} className={cx("text-left rounded-3xl p-3.5 flex flex-col gap-2 press border", t.id === "free" ? "bg-surface border-line" : "bg-sunk border-transparent")}>
-                          <span className="w-10 h-10 rounded-2xl bg-surface text-brand-deep flex items-center justify-center"><Icon n={t.icon} fill size={24} /></span>
-                          <span>
-                            <span className="block font-head font-black text-[14.5px] leading-tight">{t.label}</span>
-                            <span className="block text-[11.5px] text-sub mt-0.5">{t.sub}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                );
-                const listSection = (key, title, icon, x, top) => (
-                  <section key={key} className="space-y-2">
-                    <h4 className={cx("font-head font-black flex items-center gap-1.5", top ? "text-[16px] text-ink" : "text-[14px] text-sub")}><Icon n={icon} fill={top} size={top ? 20 : 18} className={top ? "text-brand-deep" : ""} />{title}</h4>
-                    <button onClick={x.onClick} className={cx("w-full text-left rounded-2xl px-3.5 py-3 flex items-center gap-3 press", top ? "bg-brand-tint border-[1.5px] border-brand" : "bg-surface border border-line")}>
-                      <span className={cx("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0", top ? "bg-brand text-on-brand" : "bg-sunk text-brand-deep")}><Icon n={x.icon} fill size={20} /></span>
-                      <span className="flex-1 min-w-0">
-                        <span className="block font-bold text-[14px]">{x.label}</span>
-                        <span className="block text-[11.5px] text-sub leading-snug">{x.sub}</span>
-                      </span>
-                      <Icon n="chevron_right" className={top ? "text-brand-deep" : "text-mute"} />
-                    </button>
-                  </section>
-                );
-                const gather = (top) => listSection("g", "人を集める", "diversity_3", { icon: "diversity_3", label: "仲間を募集・イベントを作る", sub: "勉強仲間などのゆるい募集も、日時と場所が決まったイベントも、ここから1つの画面で", onClick: onCreateEvent }, top);
-                const wisdom = (top) => listSection("w", "知恵を残す", "upload_file", { icon: "upload_file", label: "過去問・傾向メモを共有する", sub: `共有すると閲覧チケット+${TICKET_RULES.share}枚。先生が共有を禁止しているものはNG`, onClick: onShareKakomon }, top);
-                if (context === "kakomon") return [wisdom(true), qSection, gather(false)];
-                if (context === "gather") return [gather(true), qSection, wisdom(false)];
-                return [qSection, gather(false), wisdom(false)];
-              })()}
-            </div>
+            <div className="px-5 pb-6 pt-1 overflow-y-auto space-y-5">{order}</div>
           </Sheet>
         );
       }
 
       return (
         <Sheet onClose={onClose}>
-          <SheetHeader title={tpl.label} icon={tpl.icon} onBack={() => setTpl(null)} onClose={onClose} />
+          <SheetHeader title="先輩に質問する" icon="help" onBack={() => setMode("menu")} onClose={onClose} />
           <div className="px-5 pb-4 pt-1 overflow-y-auto space-y-4 flex-1">
-            {tpl.fields.map(f => (
-              <div key={f.k}>
-                <label className={LABEL} htmlFor={`f-${f.k}`}>{f.label}</label>
-                <input id={`f-${f.k}`} type="text" value={vals[f.k] || ""} placeholder={f.ph}
-                  onChange={(e) => setVals({ ...vals, [f.k]: e.target.value })} className={INPUT} />
-                {f.chips && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {f.chips.map(c => (
-                      <button key={c} type="button" onClick={() => setVals({ ...vals, [f.k]: c })} aria-pressed={vals[f.k] === c}
-                        className={cx("text-[12px] font-bold px-2.5 py-1 rounded-full press border", vals[f.k] === c ? "bg-brand-tint text-brand-deep border-brand/50" : "border-line text-sub")}>{c}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+            {/* ① 聞きたいこと */}
+            <div>
+              <label className={LABEL} htmlFor="ask-text">聞きたいこと</label>
+              <textarea id="ask-text" ref={textRef} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder={Q_EXAMPLE[term]}
+                className={cx(INPUT, "leading-relaxed text-[15px] font-bold")} />
+              {hasBlank && <p className="text-[12px] font-bold text-danger-ink mt-1.5 flex items-center gap-1"><Icon n="edit" size={14} />【 】の部分を書きかえてください</p>}
+            </div>
 
-            {/* 「自由に質問」のときだけ、置き場所（カテゴリー）を1回選ぶ。運営のお題は選べない */}
-            {!tpl.cat && (
-              <div>
-                <span className={LABEL}>どんな話題？</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {CATEGORIES.filter(c => c.key !== "運営のお題").map(c => (
-                    <button key={c.key} type="button" onClick={() => setCategory(c.key)} aria-pressed={category === c.key}
-                      className={cx("text-[12.5px] font-bold px-3 py-1.5 rounded-full press border flex items-center gap-1", category === c.key ? "bg-brand text-on-brand border-brand" : "bg-surface text-sub border-line")}>
-                      <Icon n={c.icon} fill={category === c.key} size={15} />{c.short}
-                    </button>
-                  ))}
-                </div>
+            {/* ② 話題（書いた文から自動で選ぶ。押して選び直せる） */}
+            <div>
+              <div className="flex items-baseline justify-between">
+                <span className={LABEL}>話題</span>
+                {category && <span className="text-[11px] text-mute">{catManual ? "選んだ話題" : "書いた内容から自動で選びました"}・「{catMeta(category).short}」に表示されます</span>}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORIES.filter(c => c.key !== "運営のお題").map(c => (
+                  <button key={c.key} type="button" onClick={() => setCatManual(catManual === c.key ? "" : c.key)} aria-pressed={category === c.key}
+                    className={cx("text-[12.5px] font-bold px-3 py-1.5 rounded-full press border flex items-center gap-1", category === c.key ? "bg-brand text-on-brand border-brand" : "bg-surface text-sub border-line")}>
+                    <Icon n={c.icon} fill={category === c.key} size={15} />{c.short}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ③ 書き方の例（話題を選ぶと出る。押すと「聞きたいこと」に入る） */}
+            {category && Q_SUGGEST[category] && (
+              <div className="bg-sunk rounded-3xl p-3.5 space-y-2 animate-fade-in">
+                <p className="text-[12px] font-black text-sub flex items-center gap-1"><Icon n="lightbulb" fill size={15} className="text-brand-deep" />書き方の例（押すと入ります）</p>
+                {Q_SUGGEST[category].map(s => (
+                  <button key={s} type="button" onClick={() => useSuggest(s)} className="w-full text-left bg-surface rounded-2xl px-3 py-2.5 text-[13.5px] font-bold leading-snug press border border-line/70 flex gap-1.5">
+                    <span className="text-brand font-black">Q.</span>
+                    <span>{s.split(/(【[^】]+】)/).map((part, i) => Q_PLACEHOLDER.test(part) ? <span key={i} className="text-brand-deep bg-brand-tint rounded px-0.5">{part}</span> : part)}</span>
+                  </button>
+                ))}
               </div>
             )}
-
-            {/* できあがる質問のプレビュー */}
-            <div className={cx("rounded-3xl p-4 border-2 border-dashed", ready ? "border-brand/50 bg-brand-tint/50" : "border-line bg-sunk/60")}>
-              <p className="text-[11.5px] font-bold text-sub mb-1">{recruit ? "こんな募集になります" : "こんな質問になります"}</p>
-              <p className="font-head font-bold text-[15.5px] leading-snug flex gap-1.5">
-                <span className="text-brand font-black">{recruit ? "募" : "Q."}</span>
-                <span className={ready ? "text-ink" : "text-mute"}>{ready ? title : "空欄をうめるとここに表示されます"}</span>
-              </p>
-              {tpl.cat && <p className="text-[11px] text-mute mt-1.5 flex items-center gap-1"><Icon n={catMeta(category).icon} size={13} />「{catMeta(category).short}」に表示されます</p>}
-            </div>
 
             {/* 🔗 似ている質問（合流するかは自分で決める） */}
             {similar.length > 0 && (
@@ -1306,7 +1284,7 @@
                       <button type="button" onClick={() => onOpenPost(p.id)} className="text-left w-full press">
                         <span className="flex gap-1.5"><span className="font-head font-black text-[15px] text-brand">Q.</span><span className="font-bold text-[14px] leading-snug line-clamp-2">{plainTitle(p.title)}</span></span>
                         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[11.5px] text-mute">
-                          {solved ? <SolvedBadge recruit={p.category === "仲間募集"} /> : <span className={p.comments.length ? "" : "font-bold text-brand-deep"}>{p.comments.length ? `回答 ${p.comments.length}件` : "回答募集中"}</span>}
+                          {solved ? <SolvedBadge /> : <span className={p.comments.length ? "" : "font-bold text-brand-deep"}>{p.comments.length ? `回答 ${p.comments.length}件` : "回答募集中"}</span>}
                           {p.joiners.length > 0 && <span className="font-bold text-brand-deep flex items-center gap-0.5"><Icon n="group" size={14} />同じ疑問 {p.joiners.length}人</span>}
                         </span>
                       </button>
@@ -1336,7 +1314,7 @@
             )}
 
             <div>
-              <span className={LABEL}>{recruit ? "だれに声をかけたい？" : "だれに聞きたい？"}</span>
+              <span className={LABEL}>だれに聞きたい？</span>
               <div className="grid grid-cols-3 gap-1.5">
                 {ASK_TO.map(a => (
                   <button key={a.v} onClick={() => setAskTo(a.v)} aria-pressed={askTo === a.v}
@@ -1352,23 +1330,21 @@
                 <label className={LABEL} htmlFor="ask-detail">くわしい状況（任意）</label>
                 {!detail && <button type="button" onClick={() => setDetail("・今の状況：\n・知りたいこと：")} className="text-[12px] font-bold text-brand-deep press">型を入れる</button>}
               </div>
-              <textarea id="ask-detail" rows={3} value={detail} onChange={(e) => setDetail(e.target.value)}
-                placeholder={recruit ? "例：週2くらい・学年や学部は問いません" : "状況を少し書くと、答えてもらいやすくなります"} className={cx(INPUT, "leading-relaxed")} />
+              <textarea id="ask-detail" rows={3} value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="状況を少し書くと、答えてもらいやすくなります" className={cx(INPUT, "leading-relaxed")} />
             </div>
 
             <label className="flex items-start gap-3 bg-sunk rounded-3xl p-3.5 cursor-pointer select-none">
               <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} className="mt-1 w-4 h-4 accent-[rgb(var(--brand))]" />
               <span className="leading-relaxed">
-                <span className="font-bold text-[14px] block">{recruit ? "匿名で募集する" : "匿名で質問する"}</span>
+                <span className="font-bold text-[14px] block">匿名で質問する</span>
                 <span className="text-[12px] text-sub block">表示：{displayName({ fac: facShort(me.faculty), grade: me.grade, anon })}</span>
               </span>
             </label>
-            <p className="text-[12px] text-mute">※ 個人の特定・悪口はNG。<span className="font-bold">{recruit ? "募集" : "質問"}はずっと無料</span>です。{recruit && " 連絡先の交換は、会ってお互いが納得してからにしましょう。"}</p>
+            <p className="text-[12px] text-mute">※ 個人の特定・悪口はNG。<span className="font-bold">質問はずっと無料</span>です。</p>
           </div>
-          <div className="px-4 pt-3 pb-4 border-t border-line">
-            <button disabled={!ready} onClick={() => onSubmit({ title, category, askTo, content: detail.trim(), anon })} className={cx(BTN_PRIMARY, "w-full")}>
-              {recruit ? "募集する" : "質問する"}
-            </button>
+          <div className="px-4 pt-3 pb-4 border-t border-line space-y-1.5">
+            {!ready && title.length > 0 && !hasBlank && !category && <p className="text-[12px] text-sub text-center">話題を1つ選んでください</p>}
+            <button disabled={!ready} onClick={() => onSubmit({ title, category, askTo, content: detail.trim(), anon })} className={cx(BTN_PRIMARY, "w-full")}>質問する</button>
           </div>
         </Sheet>
       );
@@ -2002,7 +1978,7 @@
         "絞り込み中の表示：「< ホーム」をやめ、色付きの帯に「絞り込み中」と条件の札（×で外せる）を出す。「すべて解除」で条件を全部外すとホームの表示に戻る（プロトタイプを触った人の声：解除方法が分かりにくい）",
         "ホームの絞り込みは検索欄の下の1列だけ：前期・後期で変わる話題（後期なら期末テスト・過去問／後期の履修／冬の通学／ゼミ選び／インターン）＋「もっと」で全カテゴリ。「あなた向け」見出し横の絞り込みは重複していたため削除",
         "作る入口は下の「投稿」1か所だけ：ホームの［先輩に質問する］、仲間・イベントの［作る］、過去問タブの［共有する］は削除。「投稿」を開くと、いまいる画面に合う項目が一番上に出る（ホーム＝質問／過去問タブ＝過去問の共有／仲間・イベント＝募集・イベント）。例外として、検索で見つからなかったときの「この内容で質問する」だけ残す（キーワードとカテゴリを引き継ぐため）。仲間・イベント画面でも下のメニューを常に表示",
-        "質問のカテゴリーはテンプレートを選ぶと自動で決まる（選ばせない）。「自由に質問」のときだけ「どんな話題？」をボタンで1回選ぶ。運営のお題は学生には出さない",
+        "質問は1つの画面：「聞きたいこと」を書く → 話題（書いた文から自動で選ぶ・押して選び直せる）→ 話題に合った「書き方の例」を押すと文が入り、【授業名】などの空欄が選ばれた状態になる。テンプレート7つから選ぶ形はやめ、「投稿」の中は質問する／人を集める／知恵を残すの3行にそろえた。運営のお題は学生には出さない",
         "仲間募集とイベントを統合：入口・入力画面・一覧を1つに。「日時・場所を決める」がオフ＝いつでも・ゆるい募集、オン＝イベント。反応は「参加したい＋ひとこと」にそろえた。日時ありは主催者名（団体名かニックネーム）が必須、日時なしは匿名もOK。仲間募集はQ&Aのカテゴリから外し「仲間・イベント」へ移した",
         "確かめ方：新入生に近い人にホームを5秒見せて「このアプリで何ができる？」と聞き、「先輩に聞ける」と答えてもらえるか"
       ] },
@@ -2986,7 +2962,7 @@
                       <SortToggle value={sort === "popular" ? "top" : "new"} onChange={(v) => setSort(v === "top" ? "popular" : "new")} topLabel="人気順" />
                     </div>
                     {results.length === 0
-                      ? <EmptyState text="見つかりませんでした。質問してみませんか？" action="この内容で質問する" onAction={() => setAsk({ cat: catFilter || undefined })} />
+                      ? <EmptyState text="見つかりませんでした。質問してみませんか？" action="この内容で質問する" onAction={() => setAsk({ cat: catFilter || undefined, text: query.trim() || undefined })} />
                       : results.map(p => <QuestionRow key={p.id} post={p} tokens={tokens} showTop unread={unreadPostIds.has(p.id)} onOpen={() => openPost(p.id)} onWatch={toggleWatch} />)}
                   </div>
                 ) : (
