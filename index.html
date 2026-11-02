@@ -1998,6 +1998,7 @@
         "ホームでやることを「探す・聞く」（上級生は「答える」も）に絞った版。初めて開いた人が5秒で「先輩に聞けるアプリ」と分かることが目標",
         "上から：一言＋検索（時期の話題は検索の候補に）＋「先輩に質問する」→ あなた向けの質問（回答待ち2件→よく読まれている質問。回答の一部も表示）→ 途中に今週のお題を1枚 → 「キャンパスの集まり」（イベント・仲間募集・大学から）の入口1行",
         "ヘッダーはメニューだけ。チケットは過去問タブ、QRはマイページ。チケットの説明は初めて回答したときに1回だけ出す",
+        "スクロール位置：新しい画面に進むと先頭から、元の画面に戻る（タブの行き来・絞り込み解除・仲間・イベントやお題一覧を閉じる・設定の中のページから戻る）と離れたときの位置のまま。いま開いているタブをもう一度押すと先頭へ。「これまでのお題を全て見る」は絞り込みではなく別画面の一覧",
         "絞り込み中の表示：「< ホーム」をやめ、色付きの帯に「絞り込み中」と条件の札（×で外せる）を出す。「すべて解除」で条件を全部外すとホームの表示に戻る（プロトタイプを触った人の声：解除方法が分かりにくい）",
         "ホームの絞り込みは検索欄の下の1列だけ：前期・後期で変わる話題（後期なら期末テスト・過去問／後期の履修／冬の通学／ゼミ選び／インターン）＋「もっと」で全カテゴリ。「あなた向け」見出し横の絞り込みは重複していたため削除",
         "作る入口は下の「投稿」1か所だけ：ホームの［先輩に質問する］、仲間・イベントの［作る］、過去問タブの［共有する］は削除。「投稿」を開くと、いまいる画面に合う項目が一番上に出る（ホーム＝質問／過去問タブ＝過去問の共有／仲間・イベント＝募集・イベント）。例外として、検索で見つからなかったときの「この内容で質問する」だけ残す（キーワードとカテゴリを引き継ぐため）。仲間・イベント画面でも下のメニューを常に表示",
@@ -2016,7 +2017,10 @@
       useScrollLock();
       const [sub, setSub] = useState(null);
       const bodyRef = useRef(null);
-      useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [sub]);   // 設定の中のページを切り替えたら先頭へ
+      const mainTop = useRef(0);
+      const openSub = (v) => { if (bodyRef.current) mainTop.current = bodyRef.current.scrollTop; setSub(v); };
+      // 設定の中：別ページに進んだら先頭から、「設定に戻る」で戻ったら元の位置
+      React.useLayoutEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = sub ? 0 : mainTop.current; }, [sub]);
       const title = sub === "guide" ? "ガイドライン" : sub === "about" ? "このプロトタイプについて" : sub === "notif" ? "通知設定" : sub === "plan" ? "お題の年間プラン" : "設定";
       const Row = ({ icon, label, sub: s, onClick, right, danger }) => (
         <button onClick={onClick} className={cx("w-full flex items-center gap-3 px-4 py-3.5 text-left press", danger ? "text-danger-ink" : "")}>
@@ -2048,12 +2052,12 @@
                     <Segmented value={termMode} onChange={setTermMode} options={[{ value: "auto", label: `自動（${autoTerm()}）` }, { value: "前期", label: "前期" }, { value: "後期", label: "後期" }]} />
                     <p className="text-[11.5px] text-mute">ふだんは自動。デモで前期の見え方を確かめるときに切り替えてください</p>
                   </div>
-                  <Row icon="notifications" label="通知設定" onClick={() => setSub("notif")} />
+                  <Row icon="notifications" label="通知設定" onClick={() => openSub("notif")} />
                 </Group>
                 <Group title="サポート">
-                  <Row icon="rule" label="ガイドライン" onClick={() => setSub("guide")} />
-                  <Row icon="info" label="このプロトタイプについて" sub="入れた機能・外した機能と、その理由" onClick={() => setSub("about")} />
-                  <Row icon="calendar_view_month" label="お題の年間プラン（運営用）" sub="前期・後期それぞれ10本の問いの案" onClick={() => setSub("plan")} />
+                  <Row icon="rule" label="ガイドライン" onClick={() => openSub("guide")} />
+                  <Row icon="info" label="このプロトタイプについて" sub="入れた機能・外した機能と、その理由" onClick={() => openSub("about")} />
+                  <Row icon="calendar_view_month" label="お題の年間プラン（運営用）" sub="前期・後期それぞれ10本の問いの案" onClick={() => openSub("plan")} />
                 </Group>
                 <Group>
                   <Row icon="logout" label="ログアウト" danger right={<span></span>} onClick={onLogout} />
@@ -2357,6 +2361,52 @@
       );
     }
 
+    // 📣 これまでのお題（別画面。絞り込み結果ではなく、お題だけの一覧として見せる）
+    //   ・下のメニューは見えたまま。「<」で閉じるとホームの元の位置に戻る
+    function OdaiListPage({ posts, term, me, onBack, onOpen }) {
+      useScrollLock();
+      const list = posts.filter(p => p.odai).sort((a, b) => b.at - a.at);
+      const now = list.find(p => p.odai.current && p.odai.term === term);
+      const past = list.filter(p => p !== now);
+      const Card = ({ p, current }) => {
+        const mine = p.comments.some(c => c.user.mine);
+        return (
+          <button onClick={() => onOpen(p.id)} className={cx("w-full text-left rounded-3xl p-4 space-y-2 press", current ? "bg-brand text-on-brand shadow-soft" : "bg-surface border border-line/70 shadow-soft")}
+            style={current ? { backgroundImage: "radial-gradient(rgb(255 255 255 / .12) 1px, transparent 1px)", backgroundSize: "14px 14px" } : undefined}>
+            <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
+              {current && <span className="bg-white text-brand-deep px-2 py-0.5 rounded-full font-black flex items-center gap-0.5"><Icon n="campaign" fill size={13} />今週のお題</span>}
+              <span className={cx("px-2 py-0.5 rounded-full font-black", current ? "bg-white/20" : p.odai.kind === "知恵" ? "bg-brand-tint text-brand-deep" : "bg-sunk text-sub")}>{p.odai.kind === "知恵" ? "先輩の知恵" : "息抜き"}</span>
+              <span className={current ? "opacity-90" : "text-mute"}>{agoLabel(p.at)}・{p.odai.until.slice(5)}まで</span>
+              {p.odai.migrated && <span className={current ? "opacity-90" : "text-mute"}>・ペタり場から</span>}
+            </div>
+            <p className="font-head font-black text-[15.5px] leading-snug">{p.title}</p>
+            <div className={cx("flex items-center justify-between text-[12px] font-bold", current ? "" : "text-sub")}>
+              <span className="flex items-center gap-1"><Icon n="sticky_note_2" fill size={15} />{p.comments.length}ペタ</span>
+              {mine ? <span className={cx("flex items-center gap-0.5", current ? "" : "text-brand-deep")}><Icon n="check_circle" fill size={15} />ペタ済み</span>
+                : <span className={cx("px-2.5 py-0.5 rounded-full font-black", current ? "bg-white text-brand-deep" : "border border-brand/50 text-brand-deep")}>見る・ペタる</span>}
+            </div>
+          </button>
+        );
+      };
+      return (
+        <div className="fixed inset-0 z-[25] bg-bg flex flex-col animate-push-in" role="region" aria-label="これまでのお題">
+          <div className="w-full max-w-md mx-auto flex-1 flex flex-col min-h-0">
+            <header className="px-2 pb-2 flex items-center gap-1 border-b border-line/70 bg-bg" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
+              <button onClick={onBack} aria-label="ホームに戻る" className="w-11 h-11 rounded-full flex items-center justify-center press"><Icon n="arrow_back_ios_new" size={22} /></button>
+              <h2 className="font-head font-black text-[17px] flex-1">これまでのお題</h2>
+            </header>
+            <div className="flex-1 overflow-y-auto px-4 pt-3 space-y-3" style={{ paddingBottom: "7rem" }}>
+              <p className="text-[12.5px] text-sub leading-relaxed px-1">運営が毎週出しているお題です。{me.grade === 1 ? "先輩の答えは、いつでも読み返せます。" : "過去のお題にも、いつでもペタれます。"}</p>
+              {now && <Card p={now} current />}
+              <h3 className="text-[12px] font-black text-sub px-1 pt-2">過去のお題（{past.length}）</h3>
+              {past.map(p => <Card key={p.id} p={p} />)}
+              {past.length === 0 && <EmptyState icon="campaign" text="過去のお題はまだありません" />}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // ✍️ 仲間を募集・イベントを作る（入力画面は1つ。「日時・場所を決める」で切り替え）
     const GATHER_CHIPS = ["テスト勉強の仲間", "TOEIC対策の仲間", "朝活の仲間", "資格の勉強仲間", "ランチ仲間", "サークルの新歓イベント"];
     function EventCreateSheet({ nick, onClose, onSubmit }) {
@@ -2609,6 +2659,7 @@
       const [events, setEvents] = useState(() => makeInitialEvents());
       const [promos] = useState(() => makePromos());
       const [eventsOpen, setEventsOpen] = useState(false);
+      const [odaiListOpen, setOdaiListOpen] = useState(false);   // これまでのお題（別画面）
       const [eventId, setEventId] = useState(null);
       const [promoId, setPromoId] = useState(null);
       const [eventCreate, setEventCreate] = useState(false);
@@ -2618,6 +2669,7 @@
       const [connections, setConnections] = useState([]);
       const [viewProfile, setViewProfile] = useState(null);
       const timers = useRef([]);
+      const scrollMem = useRef({});   // 画面ごとのスクロール位置（戻ったときに元の位置へ）
       const postsRef = useRef(posts);
       postsRef.current = posts;
       const toastTimer = useRef(null);
@@ -2637,7 +2689,20 @@
       const showToast = (m) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 2600); };
       const pushNotice = (n) => { if (notif[n.kind === "join" ? "watch" : n.kind] === false) return; setNotices(prev => [{ id: `n${Date.now()}${Math.random()}`, at: Date.now(), read: false, ...n }, ...prev]); };
       const updatePost = (id, fn) => setPosts(prev => prev.map(p => p.id === id ? fn(p) : p));
-      const goHome = () => { setEventsOpen(false); setTab("home"); setQuery(""); setCatFilter(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      // ホームへ：重なっている画面（仲間・イベント／お題一覧）があれば閉じるだけ＝元の位置に戻る。
+      //   検索中なら解除してホームへ戻る（元の位置）。別タブからならホームの元の位置へ。ホームでもう一度押したら先頭へ
+      const overlayOpen = eventsOpen || odaiListOpen;
+      const closeOverlays = () => { setEventsOpen(false); setOdaiListOpen(false); };
+      const goHome = () => {
+        if (overlayOpen) { closeOverlays(); if (tab === "home") return; }
+        if (tab !== "home") { setTab("home"); return; }
+        if (query || catFilter) { setQuery(""); setCatFilter(""); return; }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+      const goTab = (t) => {
+        if (overlayOpen) { closeOverlays(); if (tab === t) return; }
+        if (tab === t) window.scrollTo({ top: 0, behavior: "smooth" }); else setTab(t);
+      };
       const openPost = (id) => {
         setSelectedPostId(id);
         updatePost(id, p => ({ ...p, views: p.views + 1 }));
@@ -2727,7 +2792,7 @@
         const post = { id, category, askTo, title, content, author: myUser(anon), at: Date.now(), views: 0, watchers: 0, watched: true, comments: [], joiners: [], hidden: false, closed: false };
         setPosts(prev => [post, ...prev]);
         setAsk(null);
-        setTab("home"); setQuery(""); setCatFilter(""); window.scrollTo(0, 0);
+        closeOverlays(); scrollMem.current.home = 0; setTab("home"); setQuery(""); setCatFilter(""); window.scrollTo(0, 0);
         showToast(category === "仲間募集" ? "募集しました" : "質問しました。回答はお知らせに届きます");
         later(() => deliverDemoReply(id, "answer"), DEMO_REPLY_MS);
       };
@@ -2767,8 +2832,8 @@
       };
       const kakomonThanks = (kid) => setKakomon(prev => prev.map(k => k.id === kid ? { ...k, liked: true, thanks: k.thanks + 1 } : k));
       const kakomonCount = (course) => kakomon.filter(k => k.course === course).length;
-      const openKakomonOf = (course) => { setSelectedPostId(null); setKakomonCourse(course); setTab("kakomon"); window.scrollTo(0, 0); };
-      const goEarn = () => { setKakomonId(null); setSelectedPostId(null); setTab("home"); setQuery(""); setCatFilter(""); setScope("forYou"); setTimeout(() => { const el = document.getElementById("waiting"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); };
+      const openKakomonOf = (course) => { setSelectedPostId(null); closeOverlays(); scrollMem.current.kakomon = 0; setKakomonCourse(course); setTab("kakomon"); };
+      const goEarn = () => { setKakomonId(null); setSelectedPostId(null); closeOverlays(); scrollMem.current.home = 0; setTab("home"); setQuery(""); setCatFilter(""); setScope("forYou"); setTimeout(() => { const el = document.getElementById("waiting"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); };
 
       // ---- お知らせ ----
       const openNotice = (n) => {
@@ -2811,8 +2876,25 @@
       // 📜 画面が切り替わったらスクロール位置を先頭に戻す
       //   （タブの切り替え／検索・絞り込みに入る・条件を変える・解除する／仲間・イベント画面の開閉／ログイン直後）
       //   ※ 質問の詳細などのシートを閉じたときは、元の位置のまま（画面遷移ではないため）
-      const screenKey = `${stage}|${tab}|${searching ? 1 : 0}|${catFilter}|${eventsOpen ? 1 : 0}`;
-      useEffect(() => { window.scrollTo(0, 0); }, [screenKey]);
+      // 📜 スクロール位置のルール
+      //   ・新しい画面に進む（別のタブを初めて開く／検索・絞り込みに入る・条件を変える／ログイン直後）＝先頭から
+      //   ・元の画面に戻る（タブを行き来する／絞り込みを解除してホームに戻る／仲間・イベントやお題一覧を閉じる／シートを閉じる）＝離れたときの位置のまま
+      //   ・いま開いているタブをもう一度押す＝先頭へ
+      const viewKey = stage !== "app" ? stage : searching ? "search" : tab;
+      const viewRef = useRef(viewKey);
+      useEffect(() => {
+        const onScroll = () => { if (viewRef.current !== "search") scrollMem.current[viewRef.current] = window.scrollY; };
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+      }, []);
+      React.useLayoutEffect(() => {
+        if (viewRef.current === viewKey) return;
+        viewRef.current = viewKey;
+        window.scrollTo(0, viewKey === "search" ? 0 : (scrollMem.current[viewKey] || 0));
+      }, [viewKey]);
+      // 検索・絞り込みの条件を変えたら結果の先頭へ
+      const searchSig = `${catFilter}|${query.trim()}`;
+      React.useLayoutEffect(() => { if (searching) window.scrollTo(0, 0); }, [searchSig]);
 
       if (stage === "gate") return <GateScreen onEnter={() => setStage("onboard")} />;
       if (stage === "onboard") return <OnboardingScreen onDone={(v) => { setMe(v); setStage("app"); window.scrollTo(0, 0); }} />;
@@ -2921,7 +3003,7 @@
                       </div>
                       {homeFeed.map((p, i) => (
                         <React.Fragment key={p.id}>
-                          {p.__answerHead && <p className="text-[12px] font-black text-brand-deep flex items-center gap-1 px-1 pt-1"><Icon n="forum" size={15} />{me.grade === 1 ? "回答を待っています。知っていたら教えてあげよう" : `後輩が回答を待っています（回答でチケット+${TICKET_RULES.answer}）`}</p>}
+                          {p.__answerHead && <p id="waiting" className="text-[12px] font-black text-brand-deep flex items-center gap-1 px-1 pt-1 scroll-mt-20"><Icon n="forum" size={15} />{me.grade === 1 ? "回答を待っています。知っていたら教えてあげよう" : `後輩が回答を待っています（回答でチケット+${TICKET_RULES.answer}）`}</p>}
                           {p.__restHead && <p className="text-[12px] font-black text-sub flex items-center gap-1 px-1 pt-2"><Icon n="auto_awesome" size={15} />{scope === "forYou" ? `${term}・${gradeLabel(me.grade)}生によく読まれている質問` : "新着の質問"}</p>}
                           <QuestionRow post={p} showTop unread={unreadPostIds.has(p.id)} onOpen={() => openPost(p.id)} onWatch={toggleWatch} />
                           {/* ③ 今週のお題は一覧の途中に1枚だけ */}
@@ -2933,7 +3015,7 @@
                               <p className="text-[12px] font-bold opacity-95">{me.grade === 1 ? "先輩の答えをチェックしよう" : "あなたの経験を、後輩に教えてください"}{odaiNow.comments.some(c => c.user.mine) ? "（ペタ済み）" : ""}</p>
                             </button>
                           )}
-                          {i === odaiSlot && odaiNow && <button onClick={() => setCatFilter("運営のお題")} className="-mt-1.5 text-[12px] font-bold text-brand-deep flex items-center press px-1">これまでのお題を見る<Icon n="chevron_right" size={16} /></button>}
+                          {i === odaiSlot && odaiNow && <button onClick={() => setOdaiListOpen(true)} className="-mt-1.5 text-[12px] font-bold text-brand-deep flex items-center press px-1">これまでのお題を全て見る<Icon n="chevron_right" size={16} /></button>}
                         </React.Fragment>
                       ))}
                       {homeFeed.length === 0 && <EmptyState text="まだ質問がありません" action="最初の質問をする" onAction={() => setAsk({})} />}
@@ -2987,7 +3069,7 @@
                 </button>
               </div>
             ) : (
-              <button key={item.tab} onClick={() => { if (item.tab === "home") goHome(); else { setEventsOpen(false); setTab(item.tab); window.scrollTo(0, 0); } }} aria-label={item.tab === "notices" && unreadCount > 0 ? `お知らせ（未読${unreadCount}件）` : item.label} aria-current={tab === item.tab ? "page" : undefined}
+              <button key={item.tab} onClick={() => { if (item.tab === "home") goHome(); else goTab(item.tab); }} aria-label={item.tab === "notices" && unreadCount > 0 ? `お知らせ（未読${unreadCount}件）` : item.label} aria-current={tab === item.tab ? "page" : undefined}
                 className={cx("flex flex-col items-center gap-0.5 py-1.5 px-1.5 rounded-full min-w-[58px] press", tab === item.tab ? "text-brand-deep font-black" : "text-mute font-bold")}>
                 <span className="relative">
                   <Icon n={item.icon} fill={tab === item.tab} size={24} />
@@ -3022,7 +3104,7 @@
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setTicketIntro(false)} className={cx(BTN_SOFT, "flex-1")}>あとで</button>
-                  <button onClick={() => { setTicketIntro(false); setSelectedPostId(null); setTab("kakomon"); window.scrollTo(0, 0); }} className={cx(BTN_PRIMARY, "flex-[2] text-[14px]")}>過去問を見る</button>
+                  <button onClick={() => { setTicketIntro(false); setSelectedPostId(null); closeOverlays(); setTab("kakomon"); }} className={cx(BTN_PRIMARY, "flex-[2] text-[14px]")}>過去問を見る</button>
                 </div>
               </div>
             </Dialog>
@@ -3033,6 +3115,7 @@
             return item ? <KakomonSheet item={item} tickets={tickets} onClose={() => setKakomonId(null)} onUnlock={unlockKakomon} onThanks={kakomonThanks} onEarn={goEarn} /> : null;
           })()}
           {shareOpen && <ShareKakomonSheet onClose={() => setShareOpen(false)} onSubmit={shareKakomon} />}
+          {odaiListOpen && <OdaiListPage posts={visiblePosts} term={term} me={me} onBack={() => setOdaiListOpen(false)} onOpen={openPost} />}
           {eventsOpen && (
             <EventsPage events={events} promos={promos} me={me} onBack={() => setEventsOpen(false)}
               onOpenEvent={setEventId} onOpenPromo={setPromoId} onCreate={() => setEventCreate(true)} />
