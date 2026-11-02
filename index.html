@@ -330,14 +330,15 @@
 
     // ============================================================
     // 🗓 前期・後期の自動切り替え（4〜9月＝前期、10〜3月＝後期）
+    //   ・ホームの絞り込みはこの話題の1列だけ（「もっと」で全カテゴリ）。cat＝カテゴリで絞り込み、q＝キーワード検索
     // ============================================================
     const autoTerm = () => { const m = new Date().getMonth() + 1; return (m >= 4 && m <= 9) ? "前期" : "後期"; };
     const TERM_META = {
       "前期": { icon: "local_florist", tint: "前期", topics: [
-        { label: "履修登録", q: "履修" }, { label: "新歓・サークル", cat: "新歓・サークル" }, { label: "一人暮らし", q: "一人暮らし" }, { label: "前期テスト・過去問", cat: "授業・過去問" }
+        { label: "履修登録", q: "履修", icon: "event_note" }, { label: "新歓・サークル", cat: "新歓・サークル" }, { label: "一人暮らし", q: "一人暮らし", icon: "home" }, { label: "レポートの書き方", q: "レポート", icon: "edit_note" }, { label: "前期テスト・過去問", cat: "授業・過去問" }
       ] },
       "後期": { icon: "ac_unit", tint: "後期", topics: [
-        { label: "期末テスト・過去問", cat: "授業・過去問" }, { label: "後期の履修", q: "履修" }, { label: "冬の通学", q: "通学" }, { label: "ゼミ・研究室選び", cat: "ゼミ・研究室" }, { label: "インターン", cat: "就活・インターン" }
+        { label: "期末テスト・過去問", cat: "授業・過去問" }, { label: "後期の履修", q: "履修", icon: "event_note" }, { label: "冬の通学", q: "通学", icon: "ac_unit" }, { label: "ゼミ選び", cat: "ゼミ・研究室" }, { label: "インターン", cat: "就活・インターン" }
       ] }
     };
 
@@ -2006,7 +2007,8 @@
         "ホームでやることを「探す・聞く」（上級生は「答える」も）に絞った版。初めて開いた人が5秒で「先輩に聞けるアプリ」と分かることが目標",
         "上から：一言＋検索（時期の話題は検索の候補に）＋「先輩に質問する」→ あなた向けの質問（回答待ち2件→よく読まれている質問。回答の一部も表示）→ 途中に今週のお題を1枚 → 「キャンパスの集まり」（イベント・仲間募集・大学から）の入口1行",
         "ヘッダーはメニューだけ。チケットは過去問タブ、QRはマイページ。チケットの説明は初めて回答したときに1回だけ出す",
-        "カテゴリはホームでは5つ＋「もっと」。すべてのカテゴリは検索・絞り込み画面で選べる",
+        "絞り込み中の表示：「< ホーム」をやめ、色付きの帯に「絞り込み中」と条件の札（×で外せる）を出す。「すべて解除」で条件を全部外すとホームの表示に戻る（プロトタイプを触った人の声：解除方法が分かりにくい）",
+        "ホームの絞り込みは検索欄の下の1列だけ：前期・後期で変わる話題（後期なら期末テスト・過去問／後期の履修／冬の通学／ゼミ選び／インターン）＋「もっと」で全カテゴリ。「あなた向け」見出し横の絞り込みは重複していたため削除",
         "作る入口のルール：下の「投稿」＝作れるものの完全な一覧（質問する／人を集める＝仲間を募集・イベントを作る／知恵を残す＝過去問・傾向メモの共有）。過去問タブの共有ボタンや仲間・イベント画面の「作る」は、同じ名前・同じ画面への近道",
         "質問のカテゴリーはテンプレートを選ぶと自動で決まる（選ばせない）。「自由に質問」のときだけ「どんな話題？」をボタンで1回選ぶ。運営のお題は学生には出さない",
         "仲間募集とイベントを統合：入口・入力画面・一覧を1つに。「日時・場所を決める」がオフ＝いつでも・ゆるい募集、オン＝イベント。反応は「参加したい＋ひとこと」にそろえた。日時ありは主催者名（団体名かニックネーム）が必須、日時なしは匿名もOK。仲間募集はQ&Aのカテゴリから外し「仲間・イベント」へ移した",
@@ -2805,7 +2807,6 @@
       const hacks = visiblePosts.filter(p => ((p.category === "生活ハック" && !p.odai) || (p.odai && p.odai.kind === "知恵")) && p.comments.length >= 2 && !p.author.mine).sort((a, b) => popularity(b) - popularity(a)).slice(0, 3);
       const upcoming = [...events].sort((a, b) => a.start - b.start).slice(0, 4);
       // シンプル版ホーム：1つの一覧に「回答待ち（最大2件）→ よく読まれている質問」の順で並べる
-      const HOME_CATS = ["授業・過去問", "履修・楽単", "生活ハック", "ゼミ・研究室", "暮らし・通学"];
       const waitTop = waiting.filter(p => scope === "all" || isForMe(p)).slice(0, 2);
       const rest = feed.filter(p => !waitTop.includes(p) && p.category !== "仲間募集").sort((a, b) => scope === "forYou" ? (termScore(b) - termScore(a)) || (popularity(b) - popularity(a)) : b.at - a.at).slice(0, 6);
       const restH = rest.map((p, i) => i === 0 ? { ...p, __restHead: true } : p);
@@ -2852,13 +2853,20 @@
                     {query && <button onClick={() => setQuery("")} aria-label="検索をクリア" className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-sunk text-sub flex items-center justify-center press"><Icon n="close" size={18} /></button>}
                   </div>
                   {!searching && (<>
-                    {/* 時期の話題は、検索の候補として出す */}
-                    <ScrollRow className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-4 px-4 items-center">
-                      <span className="text-[11.5px] font-bold text-mute flex-shrink-0 flex items-center gap-0.5"><Icon n={termMeta.icon} size={14} />{term}のいま</span>
+                    {/* 絞り込みはホームでこの1列だけ：時期（前期・後期）に合わせた話題＋「もっと」で全カテゴリ */}
+                    <div className={cx("flex gap-1.5 items-center", moreCats ? "flex-wrap" : "overflow-x-auto scrollbar-none -mx-4 px-4")}>
+                      <span className="text-[11.5px] font-bold text-mute flex-shrink-0 flex items-center gap-0.5 pr-0.5"><Icon n={termMeta.icon} size={14} />{term}のいま</span>
                       {termMeta.topics.map(t => (
-                        <button key={t.label} onClick={() => { if (t.cat) setCatFilter(t.cat); else setQuery(t.q); }} className="bg-sunk text-ink text-[12px] font-bold px-2.5 py-1 rounded-full press flex-shrink-0">{t.label}</button>
+                        <button key={t.label} onClick={() => { if (t.cat) setCatFilter(t.cat); else setQuery(t.q); }} className={cx(CHIP(false), "py-1")}>
+                          <Icon n={t.icon || (t.cat ? catMeta(t.cat).icon : "search")} size={14} />{t.label}
+                        </button>
                       ))}
-                    </ScrollRow>
+                      {moreCats && <span className="basis-full h-0"></span>}
+                      {moreCats && CATEGORIES.map(c => (
+                        <button key={c.key} onClick={() => setCatFilter(c.key)} className={cx(CHIP(false), "py-1")}><Icon n={c.icon} size={14} />{c.short}</button>
+                      ))}
+                      <button onClick={() => setMoreCats(!moreCats)} aria-expanded={moreCats} className={cx(CHIP(false), "py-1")}><Icon n={moreCats ? "expand_less" : "more_horiz"} size={14} />{moreCats ? "閉じる" : "もっと"}</button>
+                    </div>
                     <button onClick={() => setAsk({})} className={cx(BTN_PRIMARY, "w-full flex items-center justify-center gap-1.5")}>
                       <Icon n="help" fill size={20} />先輩に質問する
                     </button>
@@ -2866,22 +2874,41 @@
                 </div>
 
                 {searching ? (
-                  /* 🔎 検索・絞り込みの結果（ホームへの戻り方・解除をはっきり） */
+                  /* 🔎 検索・絞り込みの結果
+                     ・「< ホーム」はやめ、いまの絞り込み条件を色付きの帯に「× 付きの札」で出す。×で外す／すべて外すとホームの表示に戻る */
                   <div className="space-y-3 animate-fade-in">
-                    <ScrollRow className="flex gap-2 overflow-x-auto scrollbar-none -mx-4 px-4">
-                      <button onClick={() => setCatFilter("")} aria-pressed={!catFilter} className={CHIP(!catFilter)}>すべて</button>
-                      {CATEGORIES.map(c => (
-                        <button key={c.key} onClick={() => setCatFilter(catFilter === c.key ? "" : c.key)} aria-pressed={catFilter === c.key} className={CHIP(catFilter === c.key)}>
-                          <Icon n={c.icon} fill={catFilter === c.key} size={15} />{c.short}
-                        </button>
-                      ))}
-                    </ScrollRow>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button onClick={goHome} className="flex items-center gap-0.5 text-[13px] font-black text-ink press"><Icon n="arrow_back_ios_new" size={16} />ホーム</button>
-                      <span className="text-[12px] text-sub flex-1">{results.length}件{catFilter && `・${catMeta(catFilter).short}`}{tokens.length > 0 && `・「${query.trim()}」`}</span>
-                      <button onClick={() => { setQuery(""); setCatFilter(""); }} className="text-[12px] font-bold text-brand-deep border border-brand/50 rounded-full px-3 py-1 flex items-center gap-0.5 press"><Icon n="close" size={14} />絞り込みを解除</button>
+                    <div className="bg-brand-tint rounded-2xl px-3 py-2.5 space-y-2" role="status" aria-label="絞り込み中の条件">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[12px] font-black text-brand-deep flex items-center gap-1"><Icon n="filter_alt" fill size={15} />絞り込み中</span>
+                        <button onClick={() => { setQuery(""); setCatFilter(""); }} className="text-[12px] font-bold text-brand-deep underline underline-offset-2 press">すべて解除</button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {catFilter && (
+                          <button onClick={() => setCatFilter("")} aria-label={`${catMeta(catFilter).short}の絞り込みを外す`} className="bg-surface text-ink border border-brand/50 text-[12.5px] font-bold pl-2.5 pr-1.5 py-1 rounded-full flex items-center gap-1 press">
+                            <Icon n={catMeta(catFilter).icon} fill size={14} className="text-brand-deep" />{catMeta(catFilter).short}<Icon n="close" size={16} className="text-sub" />
+                          </button>
+                        )}
+                        {tokens.length > 0 && (
+                          <button onClick={() => setQuery("")} aria-label="キーワードを外す" className="bg-surface text-ink border border-brand/50 text-[12.5px] font-bold pl-2.5 pr-1.5 py-1 rounded-full flex items-center gap-1 press">
+                            <Icon n="search" size={14} className="text-brand-deep" />「{query.trim()}」<Icon n="close" size={16} className="text-sub" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <Segmented value={sort} onChange={setSort} options={[{ value: "new", label: "新着", icon: "schedule" }, { value: "popular", label: "人気", icon: "favorite" }]} />
+                    <div>
+                      <p className="text-[11.5px] font-bold text-mute mb-1.5">{catFilter ? "カテゴリを変える" : "カテゴリでも絞り込む"}</p>
+                      <ScrollRow className="flex gap-2 overflow-x-auto scrollbar-none -mx-4 px-4">
+                        {CATEGORIES.map(c => (
+                          <button key={c.key} onClick={() => setCatFilter(catFilter === c.key ? "" : c.key)} aria-pressed={catFilter === c.key} className={cx(CHIP(catFilter === c.key), "py-1")}>
+                            <Icon n={catFilter === c.key ? "check" : c.icon} size={15} />{c.short}
+                          </button>
+                        ))}
+                      </ScrollRow>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 px-1">
+                      <span className="text-[13px] font-black">{results.length}件の質問</span>
+                      <SortToggle value={sort === "popular" ? "top" : "new"} onChange={(v) => setSort(v === "top" ? "popular" : "new")} topLabel="人気順" />
+                    </div>
                     {results.length === 0
                       ? <EmptyState text="見つかりませんでした。質問してみませんか？" action="この内容で質問する" onAction={() => setAsk({ cat: catFilter || undefined })} />
                       : results.map(p => <QuestionRow key={p.id} post={p} tokens={tokens} showTop unread={unreadPostIds.has(p.id)} onOpen={() => openPost(p.id)} onWatch={toggleWatch} />)}
@@ -2898,14 +2925,6 @@
                           ))}
                         </div>
                       </div>
-                      {/* カテゴリは5つ＋「もっと」 */}
-                      <div className={cx("flex gap-2", moreCats ? "flex-wrap" : "overflow-x-auto scrollbar-none -mx-4 px-4")}>
-                        {(moreCats ? CATEGORIES.map(c => c.key) : HOME_CATS).map(k => (
-                          <button key={k} onClick={() => setCatFilter(k)} className={CHIP(false)}><Icon n={catMeta(k).icon} size={15} />{catMeta(k).short}</button>
-                        ))}
-                        <button onClick={() => setMoreCats(!moreCats)} aria-expanded={moreCats} className={CHIP(false)}><Icon n={moreCats ? "expand_less" : "more_horiz"} size={15} />{moreCats ? "閉じる" : "もっと"}</button>
-                      </div>
-
                       {homeFeed.map((p, i) => (
                         <React.Fragment key={p.id}>
                           {p.__answerHead && <p className="text-[12px] font-black text-brand-deep flex items-center gap-1 px-1 pt-1"><Icon n="forum" size={15} />{me.grade === 1 ? "回答を待っています。知っていたら教えてあげよう" : `後輩が回答を待っています（回答でチケット+${TICKET_RULES.answer}）`}</p>}
