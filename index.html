@@ -970,6 +970,22 @@
       );
     }
 
+    // 📌 自分の投稿を先頭に（投稿できたことが分かるように）
+    //   ・自分の投稿が、ほかの人のどの投稿よりも新しい間だけ先頭に置く
+    //   ・ほかの人の投稿が追加される／解決済み・締め切りにすると、通常の並びに戻る
+    const pinMine = (list, isMine, at, done) => {
+      const othersNewest = Math.max(0, ...list.filter(x => !isMine(x)).map(at));
+      return list.filter(x => isMine(x) && !done(x) && at(x) > othersNewest).sort((a, b) => at(b) - at(a));
+    };
+    function MyPinned({ label, children }) {
+      return (
+        <div className="space-y-1.5 animate-fade-up">
+          <p className="text-[12px] font-black text-brand-deep flex items-center gap-1 px-1"><Icon n="check_circle" fill size={16} />{label}</p>
+          <div className="rounded-3xl ring-2 ring-brand ring-offset-2 ring-offset-bg">{children}</div>
+        </div>
+      );
+    }
+
     function EmptyState({ icon, text, action, onAction }) {
       return (
         <div className="text-center py-10 space-y-3">
@@ -1760,7 +1776,27 @@
 
     function KakomonTab({ items, tickets, courseFilter, setCourseFilter, onOpen, onEarn }) {
       const courses = Array.from(new Set(items.map(k => k.course)));
-      const list = items.filter(k => !courseFilter || k.course === courseFilter);
+      const list0 = items.filter(k => !courseFilter || k.course === courseFilter);
+      const pinned = pinMine(list0, k => k.mine, k => k.at || 0, () => false);
+      const list = list0.filter(k => !pinned.includes(k));
+      const KCard = ({ k }) => (
+              <button onClick={() => onOpen(k)} className="w-full text-left bg-surface rounded-3xl border border-line/70 shadow-soft p-4 flex items-center gap-3 press">
+                <span className={cx("w-12 h-14 rounded-xl flex items-center justify-center flex-shrink-0 border", k.unlocked ? "bg-brand-tint text-brand-deep border-brand/30" : "bg-sunk text-mute border-line")}>
+                  <Icon n={k.unlocked ? "description" : "lock"} fill size={24} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11.5px] font-bold text-brand-deep">{k.course}</span>
+                  <span className="block font-head font-bold text-[15px] leading-snug truncate">{k.title}</span>
+                  <span className="flex items-center gap-2 text-[11.5px] text-mute mt-0.5">
+                    <span>{k.kind}</span><span>{displayName(k.by)}</span>
+                    <span className="flex items-center gap-0.5"><Icon n="favorite" fill size={12} className="text-love" />{k.thanks}</span>
+                  </span>
+                </span>
+                {k.unlocked
+                  ? <span className="text-[12px] font-black text-brand-deep flex-shrink-0">見る</span>
+                  : <span className="text-[11.5px] font-black text-sub flex items-center gap-0.5 flex-shrink-0 border border-line rounded-full px-2 py-1"><Icon n="confirmation_number" size={14} />1枚</span>}
+              </button>
+      );
       return (
         <div className="space-y-5 animate-fade-in">
           <div className="px-1">
@@ -1776,7 +1812,9 @@
             <button onClick={() => setCourseFilter("")} className="text-[12px] font-bold text-brand-deep flex items-center gap-0.5 press -mt-3 px-1"><Icon n="close" size={15} />絞り込みを解除</button>
           )}
           <div className="space-y-2.5">
-            {list.map(k => (
+            {pinned.length > 0 && <MyPinned label="共有しました。あなたの過去問・傾向メモ">{pinned.map(k => <KCard key={k.id} k={k} />)}</MyPinned>}
+            {list.map(k => <KCard key={k.id} k={k} />)}
+            {false && list.map(k => (
               <button key={k.id} onClick={() => onOpen(k)} className="w-full text-left bg-surface rounded-3xl border border-line/70 shadow-soft p-4 flex items-center gap-3 press">
                 <span className={cx("w-12 h-14 rounded-xl flex items-center justify-center flex-shrink-0 border", k.unlocked ? "bg-brand-tint text-brand-deep border-brand/30" : "bg-sunk text-mute border-line")}>
                   <Icon n={k.unlocked ? "description" : "lock"} fill size={24} />
@@ -1794,7 +1832,7 @@
                   : <span className="text-[11.5px] font-black text-sub flex items-center gap-0.5 flex-shrink-0 border border-line rounded-full px-2 py-1"><Icon n="confirmation_number" size={14} />1枚</span>}
               </button>
             ))}
-            {list.length === 0 && <EmptyState icon="description" text="この授業の過去問はまだありません" />}
+            {list0.length === 0 && <EmptyState icon="description" text="この授業の過去問はまだありません" />}
           </div>
           <p className="text-[12.5px] text-sub bg-sunk rounded-2xl px-3.5 py-2.5 flex items-center gap-1.5"><Icon n="upload_file" size={18} className="text-brand-deep" /><span>過去問・傾向メモの共有は、下の<b className="text-ink">「投稿」</b>から（閲覧チケット+{TICKET_RULES.share}枚）</span></p>
           <p className="text-[11.5px] text-mute px-1 leading-relaxed">※ 先生が共有を禁止しているものは載せられません。閲覧はアプリ内だけで、保存・転載はできません。</p>
@@ -1987,7 +2025,7 @@
               <div className="w-12 h-12 rounded-full bg-brand-tint text-brand-deep flex items-center justify-center font-head font-black text-[18px] flex-shrink-0">{(profile.nick || "？").charAt(0)}</div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-[14px] truncate">{profile.nick || "ニックネーム未設定"}</p>
-                <p className="text-[11.5px] text-mute truncate">{[...profile.personas, ...profile.hobbies].slice(0, 4).join("・") || "趣味・タイプを設定すると共通点が見つかります"}</p>
+                <p className="text-[11.5px] text-mute truncate">{[profile.hitokoto, ...profile.helps, ...profile.hobbies].filter(Boolean).slice(0, 3).join("・") || "趣味や地元を設定すると、共通点が見つかります"}</p>
               </div>
               <button onClick={onConnect} className="bg-brand text-on-brand text-[13px] font-black px-3.5 py-2 rounded-full press flex items-center gap-1 flex-shrink-0"><Icon n="qr_code_scanner" size={18} />QR</button>
             </div>
@@ -1998,7 +2036,10 @@
                 {connections.map(c => (
                   <button key={c.id} onClick={() => onViewProfile(c)} className="w-full flex items-center gap-2.5 bg-sunk rounded-2xl px-3 py-2 press text-left">
                     <span className="w-8 h-8 rounded-full bg-surface text-brand-deep flex items-center justify-center font-black text-[13px]">{c.nick.charAt(0)}</span>
-                    <span className="flex-1 min-w-0 text-[13px] font-bold truncate">{c.nick}<span className="text-mute font-normal ml-1.5">{c.fac}</span></span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13px] font-bold truncate">{c.nick}<span className="text-mute font-normal ml-1.5">{c.fac}・{gradeOf(c.year)}年</span></span>
+                      <span className="block text-[11px] text-mute truncate">{`${new Date(c.at).getMonth() + 1}/${new Date(c.at).getDate()}`}{c.place ? `・${c.place}で` : ""}{c.memo ? `・${c.memo}` : c.place ? "" : "・どこで会ったかメモできます"}</span>
+                    </span>
                     <Icon n="chevron_right" size={18} className="text-mute" />
                   </button>
                 ))}
@@ -2383,8 +2424,9 @@
       const [q, setQ] = useState("");
       const base = events
         .filter(e => (!tag || (e.tags || []).includes(tag)) && (!q.trim() || norm(`${e.title} ${e.desc} ${hostName(e)}`).includes(norm(q.trim()))));
-      const scheduled = base.filter(e => e.scheduled).sort((a, b) => a.start - b.start);
-      const anytime = base.filter(e => !e.scheduled).sort((a, b) => (a.closed - b.closed) || (b.createdAt - a.createdAt));
+      const pinned = pinMine(base, e => e.mine, e => e.createdAt || 0, e => e.closed);
+      const scheduled = base.filter(e => e.scheduled && !pinned.includes(e)).sort((a, b) => a.start - b.start);
+      const anytime = base.filter(e => !e.scheduled && !pinned.includes(e)).sort((a, b) => (a.closed - b.closed) || (b.createdAt - a.createdAt));
       const filtered = tag || q;
       const clear = () => { setTag(""); setQ(""); };
       return (
@@ -2395,6 +2437,7 @@
               <h2 className="font-head font-black text-[17px] flex-1">仲間・イベント</h2>
             </header>
             <div className="flex-1 overflow-y-auto px-4 pt-3 space-y-4" style={{ paddingBottom: "7rem" }}>
+              {pinned.length > 0 && <MyPinned label="投稿しました。あなたの募集・イベント">{pinned.map(e => <EventCard key={e.id} ev={e} wide onOpen={() => onOpenEvent(e.id)} />)}</MyPinned>}
               <section className="space-y-2.5">
                 <SectionHead title="大学からのお知らせ・募集" icon="account_balance" />
                 <ScrollRow className="flex gap-3 overflow-x-auto scrollbar-none -mx-4 px-4 pb-1">
@@ -2586,17 +2629,39 @@
     // 🤝 つながる（QRでお互いのプロフィールを見る。フォロー／フォロワーはなし）
     //   ・ここで見せるプロフィールと、Q&Aの匿名の質問・回答は紐づけない（相手に表示しない）
     // ============================================================
-    const HOBBIES = ["料理・お菓子", "キャンプ", "バーベキュー", "スキー・スノボ", "サイクリング", "旅行", "音楽", "ゲーム", "アニメ", "釣り", "DIY", "カフェ巡り"];
-    const PERSONAS = ["アウトドア", "インドア", "人懐っこい", "聞き上手", "テンション高め", "マイペース", "計画派", "直感派"];
-    const SAMPLE_PROFILES = [
-      { id: "u1", nick: "拓海", fac: "農学部", year: 2026, hobbies: ["キャンプ", "バーベキュー", "釣り"], personas: ["アウトドア", "テンション高め", "人懐っこい"], hitokoto: "週末はだいたい山にいます。キャンプ道具の相談乗ります。", org: "アウトドアサークル", events: { joined: 3, hosted: 1 } },
-      { id: "u2", nick: "ヤマシタ", fac: "経済学部", year: 2026, hobbies: ["サイクリング", "カフェ巡り", "音楽"], personas: ["マイペース", "聞き上手"], hitokoto: "自転車で行ける静かなカフェを開拓中。", org: "", events: { joined: 1, hosted: 0 } }
+    // 趣味（既存サービスと同じカテゴリ・項目。選択式）
+    const HOBBY_CATS = [
+      { key: "スキル・技能", icon: "palette", items: ["イラスト・絵画", "料理・お菓子", "写真・動画", "音楽", "言語学習", "資格取得", "プログラミング", "コミュニケーション", "その他スキル"] },
+      { key: "アウトドア", icon: "forest", items: ["キャンプ", "バーベキュー", "釣り", "サイクリング", "トレッキング", "スキー・スノボ", "サーフィン", "自然観察", "その他アウトドア"] },
+      { key: "エンタメ", icon: "movie", items: ["映画・音楽", "ドラマ・アニメ", "漫画・読書", "スポーツ観戦", "ゲーム", "お笑い", "推し活", "トレカ・フィギュア", "その他エンタメ"] },
+      { key: "スポーツ", icon: "sports_soccer", items: ["野球", "サッカー", "フットサル", "テニス", "バスケットボール", "ダンス", "水泳", "武道・格闘技", "その他スポーツ"] },
+      { key: "巡る", icon: "explore", items: ["博物館・美術館", "カフェ・バー", "食べ歩き", "旅行・観光", "ドライブ", "夜景", "温泉", "その他巡る"] },
+      { key: "その他", icon: "category", items: ["アニマル", "メイク・美容", "ファッション", "お酒", "ヨガ", "DIY", "ハンドメイド", "ボランティア", "その他"] }
     ];
-    function commonOf(me, p) {
+    const isOtherHobby = (x) => /^その他/.test(x);   // 「その他○○」は共通点に数えない（中身が同じとは限らないため）
+    // 相談に乗れること（本人が書いて表示するだけ。Q&Aの匿名回答とは結びつけない）
+    const HELPS = ["履修相談OK", "一人暮らし", "バイト探し", "サークル選び", "レポート・課題", "就活・インターン", "ゼミ・研究室", `${U.short === "北大" ? "札幌" : "小樽"}の暮らし`, "地方から進学", "留学"];
+    const PREFS = ["北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県", "海外"];
+    const MET_PLACES = ["授業", "サークル", "新歓", "バイト", "その他"];
+    const academicYear = () => { const d = new Date(); return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; };
+    const entryYear = (grade) => academicYear() - (grade || 1) + 1;   // 内部では入学年で持ち、毎年4月に学年が自動で上がる
+    const gradeOf = (year) => academicYear() - year + 1;                // 表示は学年（入学年は分かりにくいため）
+    const AVATAR_TONES = ["bg-brand-tint text-brand-deep", "bg-sky-tint text-sky", "bg-love-tint text-love", "bg-ask-tint text-ask"];
+    const toneOf = (s) => AVATAR_TONES[[...String(s || "?")].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_TONES.length];
+    const SAMPLE_PROFILES = [
+      { id: "u1", nick: "拓海", fac: U.faculties[10] || U.faculties[0], year: academicYear(), home: "北海道", hitokoto: "週末はだいたい山にいます。キャンプ道具の相談乗ります。",
+        helps: [], hobbies: ["キャンプ", "釣り", "料理・お菓子"], org: "アウトドアサークル", hosted: 1, eventIds: ["e2"] },
+      { id: "u2", nick: "ヤマシタ", fac: U.faculties[4] || U.faculties[0], year: academicYear() - 2, home: "東京都", hitokoto: "上京組です。一人暮らしと履修のことなら聞いてください。",
+        helps: ["履修相談OK", "一人暮らし", "バイト探し"], hobbies: ["サイクリング", "カフェ・バー", "音楽"], org: "", hosted: 0, eventIds: ["e1"] }
+    ];
+    // 共通点：同じ学部・同じ入学年・同じ地元・同じ趣味・同じイベントに参加予定
+    function commonOf(me, p, myEvents = []) {
       const out = [];
-      if (me.year && me.year === p.year) out.push(`${p.year}年入学`);
-      p.personas.filter(x => me.personas.includes(x)).forEach(x => out.push(x));
-      p.hobbies.filter(x => me.hobbies.includes(x)).forEach(x => out.push(x));
+      if (me.fac && me.fac === p.fac) out.push(`同じ${me.fac}`);
+      if (me.year && me.year === p.year) out.push(`同じ${gradeOf(p.year)}年生`);
+      if (me.home && me.home === p.home) out.push(`地元が${p.home}`);
+      (p.hobbies || []).filter(x => !isOtherHobby(x) && (me.hobbies || []).includes(x)).forEach(x => out.push(x));
+      myEvents.filter(e => (p.eventIds || []).includes(e.id)).forEach(e => out.push(`同じイベント「${e.title.replace(/^【[^】]+】/, "").slice(0, 12)}…」`));
       return out;
     }
 
@@ -2614,32 +2679,59 @@
       return <svg viewBox={`-2 -2 ${n + 4} ${n + 4}`} width={size} height={size} className="bg-white rounded-2xl" role="img" aria-label="あなたの二次元コード（デモ）"><g fill="#111">{cells}</g></svg>;
     }
 
-    function ProfileCard({ p, common }) {
+    // 🪪 プロフィール（名刺＋自分だけのメモ）
+    function ProfileCard({ p, common, conn, onMemo, myEvents = [], self = false }) {
+      const fmt = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; };
+      const chip = "text-[12px] font-bold bg-surface px-2.5 py-0.5 rounded-full";
+      const placeOptions = [...myEvents.map(e => e.title.replace(/^【[^】]+】/, "").slice(0, 14)), ...MET_PLACES];
       return (
         <div className="space-y-3">
-          <div className="flex flex-col items-center gap-2 pt-1">
-            <div className="w-20 h-20 rounded-full bg-brand-tint text-brand-deep flex items-center justify-center font-head font-black text-[28px]">{(p.nick || "？").charAt(0)}</div>
-            <p className="font-head font-black text-[18px]">{p.nick || "ニックネーム未設定"}</p>
-            <p className="text-[12px] text-sub">{p.fac}・{p.year}年入学</p>
+          <div className="flex flex-col items-center gap-1.5 pt-1">
+            <div className={cx("w-20 h-20 rounded-full flex items-center justify-center font-head font-black text-[28px]", toneOf(p.nick))}>{(p.nick || "？").charAt(0)}</div>
+            <p className="font-head font-black text-[19px]">{p.nick || "ニックネーム未設定"}</p>
+            <p className="text-[12.5px] text-sub flex items-center gap-1"><Icon n="verified" fill size={15} className="text-brand-deep" />{p.fac}・{gradeOf(p.year)}年</p>
           </div>
+
           {common && common.length > 0 && (
             <div className="bg-brand-tint/70 border border-brand/40 rounded-3xl p-3.5 space-y-2">
               <p className="text-[13px] font-black text-brand-deep flex items-center gap-1"><Icon n="auto_awesome" fill size={16} />あなたとの共通点が{common.length}件あります！</p>
               <div className="flex flex-wrap gap-1.5">{common.map(c => <span key={c} className="text-[12px] font-bold bg-surface text-brand-deep border border-brand/40 px-2.5 py-0.5 rounded-full">✓ {c}</span>)}</div>
             </div>
           )}
+          {conn && (
+            <div className="bg-sunk rounded-3xl p-3.5 space-y-2.5 border border-dashed border-line">
+              <p className="text-[12px] font-black text-sub flex items-center gap-1"><Icon n="edit_note" size={17} />どこで会った？<span className="font-bold text-mute">（自分だけに表示）</span></p>
+              <p className="text-[13px] font-bold">{fmt(conn.at)}に{conn.how === "scanned" ? "あなたのQRを読み取ってつながった" : "QRでつながった"}{conn.place ? `・${conn.place}で` : ""}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {placeOptions.map(x => <button key={x} type="button" onClick={() => onMemo({ place: conn.place === x ? "" : x })} aria-pressed={conn.place === x}
+                  className={cx("text-[12px] font-bold px-2.5 py-1 rounded-full press border", conn.place === x ? "bg-brand text-on-brand border-brand" : "bg-surface border-line text-sub")}>{x}</button>)}
+              </div>
+              <textarea rows={2} value={conn.memo || ""} onChange={(e) => onMemo({ memo: e.target.value })} placeholder="例：線形代数で隣の席。札幌の古着屋に詳しい" aria-label="自分だけのメモ" className={cx(INPUT, "text-[13px] py-2.5 leading-relaxed")} />
+            </div>
+          )}
+
           {p.hitokoto && <div className="bg-sunk rounded-2xl p-3"><p className="text-[11.5px] font-bold text-sub">ひとこと</p><p className="text-[14px] leading-relaxed">{p.hitokoto}</p></div>}
-          {p.org && <div className="bg-sunk rounded-2xl p-3"><p className="text-[11.5px] font-bold text-sub">所属団体</p><p className="text-[14px]">{p.org}</p></div>}
-          <div className="bg-sunk rounded-2xl p-3 space-y-1.5"><p className="text-[11.5px] font-bold text-sub">性格・行動タイプ</p><div className="flex flex-wrap gap-1.5">{p.personas.map(x => <span key={x} className="text-[12px] font-bold bg-surface px-2.5 py-0.5 rounded-full">{x}</span>)}{p.personas.length === 0 && <span className="text-[12px] text-mute">未設定</span>}</div></div>
-          <div className="bg-sunk rounded-2xl p-3 space-y-1.5"><p className="text-[11.5px] font-bold text-sub">趣味</p><div className="flex flex-wrap gap-1.5">{p.hobbies.map(x => <span key={x} className="text-[12px] font-bold bg-surface px-2.5 py-0.5 rounded-full">{x}</span>)}{p.hobbies.length === 0 && <span className="text-[12px] text-mute">未設定</span>}</div></div>
-          {p.events && <div className="grid grid-cols-2 gap-2 text-center"><div className="bg-sunk rounded-2xl py-2"><p className="text-[11px] text-sub font-bold">参加したイベント</p><p className="font-head font-black text-[18px]">{p.events.joined}</p></div><div className="bg-sunk rounded-2xl py-2"><p className="text-[11px] text-sub font-bold">主催したイベント</p><p className="font-head font-black text-[18px]">{p.events.hosted}</p></div></div>}
-          <p className="text-[11.5px] text-mute flex items-start gap-1"><Icon n="lock" size={14} />Q&Aでの質問・回答は、プロフィールには表示されません</p>
+          {p.helps && p.helps.length > 0 && (
+            <div className="bg-sunk rounded-2xl p-3 space-y-1.5">
+              <p className="text-[11.5px] font-bold text-sub flex items-center gap-1"><Icon n="volunteer_activism" size={15} className="text-brand-deep" />相談に乗れること</p>
+              <div className="flex flex-wrap gap-1.5">{p.helps.map(x => <span key={x} className={cx(chip, "text-brand-deep border border-brand/40")}>{x}</span>)}</div>
+            </div>
+          )}
+          {p.hobbies && p.hobbies.length > 0 && <div className="bg-sunk rounded-2xl p-3 space-y-1.5"><p className="text-[11.5px] font-bold text-sub">趣味</p><div className="flex flex-wrap gap-1.5">{p.hobbies.map(x => <span key={x} className={chip}>{x}</span>)}</div></div>}
+          {(p.home || p.org) && (
+            <div className="grid grid-cols-2 gap-2">
+              {p.home && <div className="bg-sunk rounded-2xl p-3"><p className="text-[11.5px] font-bold text-sub">地元</p><p className="text-[14px] font-bold">{p.home}</p></div>}
+              {p.org && <div className={cx("bg-sunk rounded-2xl p-3", !p.home && "col-span-2")}><p className="text-[11.5px] font-bold text-sub">サークル・団体</p><p className="text-[14px] font-bold">{p.org}</p></div>}
+            </div>
+          )}
+          {p.hosted > 0 && <p className="text-[12px] text-sub flex items-center gap-1"><Icon n="campaign" size={15} />イベントを主催したことがあります</p>}
+          <p className="text-[11.5px] text-mute flex items-start gap-1 leading-relaxed"><Icon n="lock" size={14} className="mt-px flex-shrink-0" />{self ? "このプロフィールを見られるのは、QRでつながった人と、あなたのイベントに「参加したい」を送った人だけです。" : ""}Q&Aでの質問・回答は、プロフィールには表示されません</p>
         </div>
       );
     }
 
     // 🤝 つながる（QRを読み取る／読み取られる → お互いの「つながった人」に追加 → 相手にもお知らせ）
-    function ConnectSheet({ profile, connections = [], onClose, onConnected, onOpenList }) {
+    function ConnectSheet({ profile, myProfile, connections = [], myEvents = [], onMemo, onClose, onConnected, onOpenList }) {
       const [step, setStep] = useState("mine");   // mine → scanning → result ／ mine → (読み取られる) → result
       const [who, setWho] = useState(null);
       const [how, setHow] = useState("scan");     // scan＝自分が読み取った／scanned＝相手に読み取られた
@@ -2694,7 +2786,8 @@
                   {!already && <span className="block text-[12px] opacity-90 leading-relaxed mt-0.5">{how === "scan" ? `${who.nick}さんにもお知らせが届き、相手の「つながった人」にもあなたが追加されます。` : "お互いの「つながった人」に追加されました。"}</span>}
                 </span>
               </div>
-              <ProfileCard p={who} common={commonOf(profile, who)} />
+              <ProfileCard p={who} common={commonOf(myProfile || profile, who, myEvents)} myEvents={myEvents}
+                conn={connections.find(c => c.id === who.id)} onMemo={(patch) => onMemo(who.id, patch)} />
             </>)}
           </div>
           {step === "result" && (
@@ -2707,22 +2800,91 @@
       );
     }
 
-    function ProfileEditSheet({ profile, onClose, onSave }) {
-      const [p, setP] = useState(profile);
-      const toggle = (k, v) => setP({ ...p, [k]: p[k].includes(v) ? p[k].filter(x => x !== v) : [...p[k], v] });
-      const chipCls = (on) => cx("text-[12px] font-bold px-2.5 py-1 rounded-full press border", on ? "bg-brand-tint text-brand-deep border-brand/50" : "border-line text-sub");
+    function ProfileEditSheet({ profile, me, myEvents = [], onClose, onSave }) {
+      const [p, setP] = useState({ hobbyFree: "", ...profile });
+      const [view, setView] = useState("edit");
+      const [hcat, setHcat] = useState(HOBBY_CATS[0].key);
+      const toggle = (k, v, max) => setP(prev => {
+        const has = prev[k].includes(v);
+        if (!has && max && prev[k].length >= max) return prev;
+        return { ...prev, [k]: has ? prev[k].filter(x => x !== v) : [...prev[k], v] };
+      });
+      const chipCls = (on) => cx("text-[12.5px] font-bold px-3 py-1.5 rounded-full press border", on ? "bg-brand text-on-brand border-brand" : "bg-surface border-line text-sub");
+      const shown = { ...p, fac: me.faculty, year: entryYear(me.grade) };
+      const ok = p.nick.trim().length > 0;
+      const Count = ({ v, max }) => <span className={cx("text-[11px]", v.length > max ? "text-danger-ink font-bold" : "text-mute")}>{v.length}/{max}</span>;
       return (
         <Sheet onClose={onClose} z={60}>
           <SheetHeader title="つながる用プロフィール" icon="badge" onClose={onClose} />
+          <div className="px-5 pt-1 pb-2"><Segmented value={view} onChange={setView} options={[{ value: "edit", label: "編集", icon: "edit" }, { value: "preview", label: "相手からの見え方", icon: "visibility" }]} /></div>
           <div className="px-5 pb-4 pt-1 overflow-y-auto space-y-4 flex-1">
-            <p className="text-[12.5px] text-sub bg-sunk rounded-2xl p-3 leading-relaxed">QRで「つながる」ときに相手に見せるプロフィールです。Q&Aの匿名の質問・回答とは紐づきません。</p>
-            <div><label className={LABEL} htmlFor="pr-nick">ニックネーム</label><input id="pr-nick" value={p.nick} onChange={(e) => setP({ ...p, nick: e.target.value })} placeholder="例：chika" className={INPUT} /></div>
-            <div><label className={LABEL} htmlFor="pr-hito">ひとこと</label><input id="pr-hito" value={p.hitokoto} onChange={(e) => setP({ ...p, hitokoto: e.target.value })} placeholder="例：カフェ巡りが好きです" className={INPUT} /></div>
-            <div><label className={LABEL} htmlFor="pr-org">所属団体（任意）</label><input id="pr-org" value={p.org} onChange={(e) => setP({ ...p, org: e.target.value })} className={INPUT} /></div>
-            <div><span className={LABEL}>性格・行動タイプ</span><div className="flex flex-wrap gap-1.5">{PERSONAS.map(x => <button key={x} onClick={() => toggle("personas", x)} className={chipCls(p.personas.includes(x))}>{x}</button>)}</div></div>
-            <div><span className={LABEL}>趣味</span><div className="flex flex-wrap gap-1.5">{HOBBIES.map(x => <button key={x} onClick={() => toggle("hobbies", x)} className={chipCls(p.hobbies.includes(x))}>{x}</button>)}</div></div>
+            {view === "preview" ? <ProfileCard p={shown} common={[]} self /> : (<>
+              <p className="text-[12.5px] text-sub bg-sunk rounded-2xl p-3 leading-relaxed">会った人に見せる<b>名刺</b>のようなものです。見られるのは、QRでつながった人と、あなたのイベントに「参加したい」を送った人だけ。Q&Aの匿名の質問・回答とは紐づきません。</p>
+              <div className="bg-sunk rounded-2xl p-3 flex items-center gap-2">
+                <Icon n="verified" fill size={18} className="text-brand-deep" />
+                <span className="flex-1 text-[13.5px] font-bold">{me.faculty}・{me.grade}年</span>
+                <span className="text-[11px] text-mute text-right leading-tight">大学メール認証から<br />自動で表示・毎年4月に更新</span>
+              </div>
+              <div>
+                <div className="flex justify-between items-baseline"><label className={LABEL} htmlFor="pr-nick">ニックネーム（必須）</label><Count v={p.nick} max={12} /></div>
+                <input id="pr-nick" value={p.nick} onChange={(e) => setP({ ...p, nick: e.target.value })} placeholder="例：chika（本名でなくてOK）" className={INPUT} />
+              </div>
+              <div>
+                <div className="flex justify-between items-baseline"><label className={LABEL} htmlFor="pr-hito">ひとこと</label><Count v={p.hitokoto} max={40} /></div>
+                <input id="pr-hito" value={p.hitokoto} onChange={(e) => setP({ ...p, hitokoto: e.target.value })} placeholder="例：古着とカフェが好き。話しかけてください！" className={INPUT} />
+              </div>
+              <div>
+                <span className={LABEL}>相談に乗れること（3つまで）</span>
+                <div className="flex flex-wrap gap-1.5">{HELPS.map(x => <button key={x} type="button" onClick={() => toggle("helps", x, 3)} aria-pressed={p.helps.includes(x)} className={chipCls(p.helps.includes(x))}>{x}</button>)}</div>
+                <p className="text-[11px] text-mute mt-1.5">1年生は空欄でOK。先輩に話しかけるきっかけになります</p>
+              </div>
+              <div>
+                <div className="flex justify-between items-baseline"><span className={LABEL}>趣味</span><span className="text-[11px] text-mute">{p.hobbies.length}個選択中</span></div>
+                {/* カテゴリを切り替えて選ぶ（選んだ数をカテゴリ名の横に表示） */}
+                <ScrollRow className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-5 px-5 pb-1.5">
+                  {HOBBY_CATS.map(c => {
+                    const n = c.items.filter(x => p.hobbies.includes(x)).length;
+                    return (
+                      <button key={c.key} type="button" onClick={() => setHcat(c.key)} aria-pressed={hcat === c.key}
+                        className={cx("flex-shrink-0 text-[12.5px] font-bold px-3 py-1.5 rounded-xl press border flex items-center gap-1", hcat === c.key ? "bg-ink text-bg border-ink" : "bg-sunk border-transparent text-sub")}>
+                        <Icon n={c.icon} size={16} />{c.key}{n > 0 && <span className={cx("min-w-[18px] h-[18px] px-1 rounded-full text-[10.5px] font-black flex items-center justify-center", hcat === c.key ? "bg-bg text-ink" : "bg-brand text-on-brand")}>{n}</span>}
+                      </button>
+                    );
+                  })}
+                </ScrollRow>
+                <div className="flex flex-wrap gap-1.5 bg-sunk/60 rounded-2xl p-2.5 mt-1">
+                  {HOBBY_CATS.find(c => c.key === hcat).items.map(x => <button key={x} type="button" onClick={() => toggle("hobbies", x)} aria-pressed={p.hobbies.includes(x)} className={chipCls(p.hobbies.includes(x))}>{p.hobbies.includes(x) && "✓ "}{x}</button>)}
+                </div>
+                {p.hobbies.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] font-bold text-mute">選んだ趣味：</span>
+                    {p.hobbies.map(x => <button key={x} type="button" onClick={() => toggle("hobbies", x)} aria-label={`${x}を外す`} className="text-[11.5px] font-bold bg-brand-tint text-brand-deep rounded-full pl-2.5 pr-1.5 py-0.5 flex items-center gap-0.5 press">{x}<Icon n="close" size={13} /></button>)}
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LABEL} htmlFor="pr-home">地元（都道府県）</label>
+                  <select id="pr-home" value={p.home} onChange={(e) => setP({ ...p, home: e.target.value })} className={cx(INPUT, "py-3")}>
+                    <option value="">表示しない</option>
+                    {PREFS.map(x => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL} htmlFor="pr-org">サークル・団体</label>
+                  <input id="pr-org" value={p.org} onChange={(e) => setP({ ...p, org: e.target.value })} placeholder="任意" className={INPUT} />
+                </div>
+              </div>
+              <p className="text-[11px] text-mute -mt-2">日時のあるイベントを主催するときは、主催者名としてニックネームかサークル・団体名が表示されます</p>
+              <div className="bg-sunk rounded-2xl p-3 text-[12px] text-sub leading-relaxed">
+                <p className="font-bold flex items-center gap-1 mb-0.5"><Icon n="block" size={15} />プロフィールに書かないでください</p>
+                本名・連絡先（LINE・Instagram・電話番号）・学籍番号・住所。連絡先は、会ったときに直接交換してください。
+              </div>
+            </>)}
           </div>
-          <div className="px-4 pt-3 pb-4 border-t border-line"><button onClick={() => onSave(p)} className={cx(BTN_PRIMARY, "w-full")}>保存する</button></div>
+          <div className="px-4 pt-3 pb-4 border-t border-line">
+            <button disabled={!ok || p.nick.length > 12 || p.hitokoto.length > 40} onClick={() => onSave({ ...p, nick: p.nick.trim(), hitokoto: p.hitokoto.trim() })} className={cx(BTN_PRIMARY, "w-full")}>保存する</button>
+          </div>
         </Sheet>
       );
     }
@@ -2772,7 +2934,7 @@
       const [promoId, setPromoId] = useState(null);
       const [eventCreate, setEventCreate] = useState(false);
       const [connectOpen, setConnectOpen] = useState(false);
-      const [profile, setProfile] = useState({ nick: "chika", hitokoto: "", org: "", hobbies: ["キャンプ", "カフェ巡り"], personas: ["アウトドア", "聞き上手"], year: 2026 });
+      const [profile, setProfile] = useState({ nick: "chika", hitokoto: "", org: "", hobbies: ["キャンプ", "カフェ・バー"], helps: [], home: "北海道" });
       const [profileEdit, setProfileEdit] = useState(false);
       const [connections, setConnections] = useState([]);
       const [viewProfile, setViewProfile] = useState(null);
@@ -2875,7 +3037,7 @@
         const id = `e${Date.now()}`;
         setEvents(prev => [{ id, ...v, interested: 0, mine: true, myInterest: false, grades: [1, 2, 3, 4, 5], tone: prev.length, createdAt: Date.now(), joiners: [] }, ...prev]);
         setEventCreate(false);
-        setEventsOpen(true);
+        scrollMem.current.events = 0; setTab("home"); setEventsOpen(true);
         showToast(v.scheduled ? "イベントを公開しました" : "仲間を募集しました");
         later(() => {
           setEvents(prev => prev.map(e => e.id === id ? { ...e, interested: e.interested + 1, joiners: [...(e.joiners || []), { id: `d${Date.now()}`, who: "匿名・1年", note: "参加したいです！" }] } : e));
@@ -2933,10 +3095,11 @@
         showToast("チケットを1枚使いました");
       };
       const shareKakomon = ({ course, title, kind, memo }) => {
-        const item = { id: `k${Date.now()}`, course, title, kind, memo, by: myUser(me.anonDefault), thanks: 0, views: 0, unlocked: true, mine: true, lines: ["（あなたが共有した内容がここに表示されます）"] };
+        const item = { id: `k${Date.now()}`, at: Date.now(), course, title, kind, memo, by: myUser(me.anonDefault), thanks: 0, views: 0, unlocked: true, mine: true, lines: ["（あなたが共有した内容がここに表示されます）"] };
         setKakomon(prev => [item, ...prev]);
         setTickets(t => t + TICKET_RULES.share);
         setShareOpen(false);
+        closeOverlays(); setKakomonCourse(""); scrollMem.current.kakomon = 0; setTab("kakomon"); window.scrollTo(0, 0);
         showToast(`共有ありがとう！チケット+${TICKET_RULES.share}枚`);
         pushNotice({ kind: "ticket", title: `閲覧チケット+${TICKET_RULES.share}枚`, preview: `【${course}】を共有してくれたお礼です` });
       };
@@ -2950,6 +3113,10 @@
         kakomon.forEach(k => add(k.course, 0, 1));
         return Array.from(m.values());
       }, [posts, kakomon]);
+// つながる：自分のプロフィール（学部・入学年は認証情報から）、参加予定のイベント、相手ごとのメモ
+      const myCard = { ...profile, fac: me.faculty, year: entryYear(me.grade) };
+      const myEvents = events.filter(e => e.myInterest || e.mine);
+      const updateConn = (id, patch) => setConnections(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
       const kakomonCount = (course) => kakomon.filter(k => k.course === course).length;
       const openKakomonOf = (course) => { setSelectedPostId(null); closeOverlays(); scrollMem.current.kakomon = 0; setKakomonCourse(course); setTab("kakomon"); };
       const goEarn = () => { setKakomonId(null); setSelectedPostId(null); closeOverlays(); scrollMem.current.home = 0; setTab("home"); setQuery(""); setCatFilter(""); setScope("forYou"); setTimeout(() => { const el = document.getElementById("waiting"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); };
@@ -2968,9 +3135,11 @@
       const popularity = (p) => p.watchers + p.comments.reduce((a, c) => a + (c.thanks || 0), 0);
       const tokens = parseQuery(query);
       const searching = tokens.length > 0 || !!catFilter;
-      const results = visiblePosts
+      const results0 = visiblePosts
         .filter(p => (!catFilter || p.category === catFilter) && (tokens.length === 0 || matchPost(p, tokens)))
         .sort((a, b) => sort === "popular" ? popularity(b) - popularity(a) : b.at - a.at);
+      const pinnedR = pinMine(visiblePosts.filter(p => !p.odai), p => p.author.mine, p => p.at, p => p.bestAnswerId || p.closed).filter(p => results0.includes(p));
+      const results = [...pinnedR, ...results0.filter(p => !pinnedR.includes(p))];
       const odaiNow = visiblePosts.find(p => p.odai && p.odai.current && p.odai.term === term);
       const qPosts = visiblePosts.filter(p => !p.odai);
       const feed = qPosts
@@ -2988,7 +3157,8 @@
       const restH = rest.map((p, i) => i === 0 ? { ...p, __restHead: true } : p);
       const waitH = waitTop.map((p, i) => i === 0 ? { ...p, __answerHead: true } : p);
       // 1年生：まず「答えが付いている質問」で価値を見せる（回答待ちは3件目の後）。上級生：回答待ちを先頭に
-      const homeFeed = me.grade === 1 ? [...restH.slice(0, 3), ...waitH, ...restH.slice(3)] : [...waitH, ...restH];
+      const pinnedQ = pinMine(qPosts, p => p.author.mine, p => p.at, p => p.bestAnswerId || p.closed);
+      const homeFeed = (me.grade === 1 ? [...restH.slice(0, 3), ...waitH, ...restH.slice(3)] : [...waitH, ...restH]).filter(p => !pinnedQ.some(x => x.id === p.id));
       const odaiSlot = Math.min(homeFeed.length - 1, me.grade === 1 ? 1 : waitTop.length + 1);
       const openGathers = events.filter(e => !e.closed);
 
@@ -3121,6 +3291,7 @@
                           ))}
                         </div>
                       </div>
+                      {pinnedQ.length > 0 && <MyPinned label="質問しました。回答が届くとお知らせします">{pinnedQ.map(p => <QuestionRow key={p.id} post={p} showTop unread={unreadPostIds.has(p.id)} onOpen={() => openPost(p.id)} onWatch={toggleWatch} />)}</MyPinned>}
                       {homeFeed.map((p, i) => (
                         <React.Fragment key={p.id}>
                           {p.__answerHead && <p id="waiting" className="text-[12px] font-black text-brand-deep flex items-center gap-1 px-1 pt-1 scroll-mt-20"><Icon n="forum" size={15} />{me.grade === 1 ? "回答を待っています。知っていたら教えてあげよう" : `後輩が回答を待っています（回答でチケット+${TICKET_RULES.answer}）`}</p>}
@@ -3243,13 +3414,14 @@
           {eventId && (() => { const ev = events.find(e => e.id === eventId); return ev ? <EventSheet ev={ev} onClose={() => setEventId(null)} onInterest={toggleInterest} onCloseGather={closeGather} onReport={(id) => setReportTarget({ eventId: id })} /> : null; })()}
           {promoId && <PromoSheet promo={promos.find(p => p.id === promoId)} onClose={() => setPromoId(null)} showToast={showToast} />}
           {eventCreate && <EventCreateSheet nick={profile.nick} onClose={() => setEventCreate(false)} onSubmit={createEvent} />}
-          {connectOpen && <ConnectSheet profile={profile} connections={connections} onClose={() => setConnectOpen(false)} onConnected={onConnected}
+          {connectOpen && <ConnectSheet profile={profile} myProfile={myCard} myEvents={myEvents} onMemo={updateConn} connections={connections} onClose={() => setConnectOpen(false)} onConnected={onConnected}
             onOpenList={() => { setConnectOpen(false); closeOverlays(); setTab("me"); }} />}
-          {profileEdit && <ProfileEditSheet profile={profile} onClose={() => setProfileEdit(false)} onSave={(p) => { setProfile(p); setProfileEdit(false); showToast("保存しました"); }} />}
+          {profileEdit && <ProfileEditSheet profile={profile} me={me} onClose={() => setProfileEdit(false)} onSave={(p) => { setProfile(p); setProfileEdit(false); showToast("保存しました"); }} />}
           {viewProfile && (
             <Sheet onClose={() => setViewProfile(null)} z={58}>
               <SheetHeader title="プロフィール" icon="badge" onClose={() => setViewProfile(null)} />
-              <div className="px-5 pb-6 pt-1 overflow-y-auto"><ProfileCard p={viewProfile} common={commonOf(profile, viewProfile)} /></div>
+              <div className="px-5 pb-6 pt-1 overflow-y-auto"><ProfileCard p={viewProfile} common={commonOf(myCard, viewProfile, myEvents)} myEvents={myEvents}
+                conn={connections.find(c => c.id === viewProfile.id)} onMemo={(patch) => updateConn(viewProfile.id, patch)} /></div>
             </Sheet>
           )}
           {menuOpen && (
